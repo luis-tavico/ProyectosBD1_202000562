@@ -24,7 +24,7 @@ def index():
 def get_query1():
     try:
         with connection.cursor() as cursor:
-            sql = """
+            query = """
             SELECT cliente.id AS id_cliente,
                    cliente.nombre AS nombre_cliente,
                    cliente.apellido AS apellido_cliente,
@@ -38,7 +38,7 @@ def get_query1():
             ORDER BY monto_total DESC
             LIMIT 1;
             """
-            cursor.execute(sql)
+            cursor.execute(query)
             customer = cursor.fetchone()
     except Exception as e:
         return f"Error: {str(e)}"
@@ -53,7 +53,7 @@ def get_query2():
         result = {}
         with connection.cursor() as cursor:
             # Buscar producto mas comprado
-            sql = """
+            query = """
             SELECT producto.id AS id_producto,
                    producto.nombre AS nombre_producto,
                    categoria.nombre AS categoria_producto,
@@ -66,10 +66,11 @@ def get_query2():
             ORDER BY cantidad_total DESC
             LIMIT 1;
             """
-            cursor.execute(sql)
-            result['producto_mas_comprado'] = product = cursor.fetchone()
+            cursor.execute(query)
+            product = cursor.fetchone()
+            result['producto_mas_comprado'] = product
             # Buscar producto menos comprado
-            sql = """
+            query = """
             SELECT producto.id AS id_producto,
                    producto.nombre AS nombre_producto,
                    categoria.nombre AS categoria_producto,
@@ -82,8 +83,9 @@ def get_query2():
             ORDER BY cantidad_total ASC
             LIMIT 1;
             """
-            cursor.execute(sql)
-            result['producto_menos_comprado'] = product = cursor.fetchone()
+            cursor.execute(query)
+            product = cursor.fetchone()
+            result['producto_menos_comprado'] = product
     except Exception as e:
         return f"Error: {str(e)}"
     finally:
@@ -94,9 +96,8 @@ def get_query2():
 @app.route('/consulta3', methods=['GET'])
 def get_query3():
     try:
-        result = {}
         with connection.cursor() as cursor:
-            sql = """
+            query = """
             SELECT vendedor.id AS id_vendedor,
                    vendedor.nombre AS nombre_vendedor,
                    SUM(producto.precio * orden.cantidad) AS monto_total_vendido
@@ -107,7 +108,7 @@ def get_query3():
             ORDER BY monto_total_vendido DESC
             LIMIT 1;
             """
-            cursor.execute(sql)
+            cursor.execute(query)
             seller = cursor.fetchone()
     except Exception as e:
         return f"Error: {str(e)}"
@@ -122,7 +123,7 @@ def get_query4():
         result = {}
         with connection.cursor() as cursor:
             # Buscar el pais que mas ha vendido
-            sql = """
+            query = """
             SELECT vendedor.id_pais AS id_pais,
                    pais.nombre AS nombre_pais,
                    SUM(orden.cantidad * producto.precio) AS monto_total_vendido
@@ -134,10 +135,11 @@ def get_query4():
             ORDER BY monto_total_vendido DESC
             LIMIT 1;
             """
-            cursor.execute(sql)
-            result['pais_que_mas_ha_vendido'] = country = cursor.fetchone()
+            cursor.execute(query)
+            country = cursor.fetchone()
+            result['pais_que_mas_ha_vendido'] = country
             # Buscar el pais que menos ha vendido
-            sql = """
+            query = """
             SELECT vendedor.id_pais AS id_pais,
                    pais.nombre AS nombre_pais,
                    SUM(orden.cantidad * producto.precio) AS monto_total_vendido
@@ -148,8 +150,9 @@ def get_query4():
             GROUP BY vendedor.id_pais
             ORDER BY SUM(orden.cantidad * producto.precio) ASC
             """
-            cursor.execute(sql)
-            result['pais_que_menos_ha_vendido'] = country = cursor.fetchone()
+            cursor.execute(query)
+            country = cursor.fetchone()
+            result['pais_que_menos_ha_vendido'] = country
     except Exception as e:
         return f"Error: {str(e)}"
     finally:
@@ -160,9 +163,8 @@ def get_query4():
 @app.route('/consulta5', methods=['GET'])
 def get_query5():
     try:
-        result = {}
         with connection.cursor() as cursor:
-            sql = """
+            query = """
             SELECT vendedor.id_pais AS id_pais,
                    pais.nombre AS nombre_pais,
                    SUM(orden.cantidad * producto.precio) AS monto_total_vendido
@@ -171,10 +173,10 @@ def get_query5():
             JOIN pais ON vendedor.id_pais = pais.id
             JOIN producto ON orden.id_producto = producto.id
             GROUP BY vendedor.id_pais
-            ORDER BY SUM(orden.cantidad * producto.precio) ASC
+            ORDER BY monto_total_vendido ASC
             LIMIT 5;
             """
-            cursor.execute(sql)
+            cursor.execute(query)
             countries = cursor.fetchall()
     except Exception as e:
         return f"Error: {str(e)}"
@@ -189,7 +191,7 @@ def get_query6():
         result = {}
         with connection.cursor() as cursor:
             # Buscar categoria que mas se ha comprado
-            sql = """
+            query = """
             SELECT categoria.nombre AS nombre_categoria,
                    SUM(orden.cantidad) AS cantidad_unidades
             FROM orden
@@ -199,10 +201,10 @@ def get_query6():
             ORDER BY SUM(orden.cantidad) DESC
             LIMIT 1
             """
-            cursor.execute(sql)
+            cursor.execute(query)
             result['categoria_mas_comprada'] = cursor.fetchone()
             # Buscar categoria que menos se ha comprado
-            sql = """
+            query = """
             SELECT categoria.nombre AS nombre_categoria,
                    SUM(orden.cantidad) AS cantidad_unidades
             FROM orden
@@ -212,7 +214,7 @@ def get_query6():
             ORDER BY SUM(orden.cantidad) ASC
             LIMIT 1;
             """
-            cursor.execute(sql)
+            cursor.execute(query)
             result['categoria_menos_comprada'] = cursor.fetchone()
     except Exception as e:
         return f"Error: {str(e)}"
@@ -224,10 +226,9 @@ def get_query6():
 @app.route('/consulta7', methods=['GET'])
 def get_query7():
     try:
-        result = {}
         with connection.cursor() as cursor:
             # Buscar la categoria mas comprada por cada pais
-            sql = """
+            query = """
             SELECT nombre_pais, nombre_categoria, cantidad_unidades
             FROM (
                 SELECT pais.nombre AS nombre_pais,
@@ -243,7 +244,7 @@ def get_query7():
             ) AS rankings
             WHERE ranking = 1;
             """
-            cursor.execute(sql)
+            cursor.execute(query)
             categories = cursor.fetchall()
     except Exception as e:
         return f"Error: {str(e)}"
@@ -255,9 +256,8 @@ def get_query7():
 @app.route('/consulta8', methods=['GET'])
 def get_query8():
     try:
-        result = {}
         with connection.cursor() as cursor:
-            sql = """
+            query = """
             SELECT MONTH(orden.fecha) AS numero_mes,
                    SUM(orden.cantidad * producto.precio) AS monto_total
             FROM orden
@@ -267,7 +267,7 @@ def get_query8():
             WHERE pais.nombre = 'Inglaterra'
             GROUP BY MONTH(orden.fecha);
             """
-            cursor.execute(sql)
+            cursor.execute(query)
             sales = cursor.fetchall()
     except Exception as e:
         return f"Error: {str(e)}"
@@ -281,7 +281,7 @@ def get_query9():
     try:
         result = {}
         with connection.cursor() as cursor:
-            sql = """
+            query = """
             (
                 SELECT MONTH(orden.fecha) AS numero_mes,
                     SUM(orden.cantidad * producto.precio) AS monto_total_ventas
@@ -302,7 +302,7 @@ def get_query9():
                 LIMIT 1
             );
             """
-            cursor.execute(sql)
+            cursor.execute(query)
             sales = cursor.fetchall()
     except Exception as e:
         return f"Error: {str(e)}"
@@ -316,7 +316,7 @@ def get_query10():
     try:
         result = {}
         with connection.cursor() as cursor:
-            sql = """
+            query = """
             SELECT producto.id AS id_producto,
                    producto.nombre AS nombre_producto,
                    SUM(orden.cantidad * producto.precio) AS monto_total
@@ -326,7 +326,7 @@ def get_query10():
             WHERE categoria.nombre = 'Deportes'
             GROUP BY producto.id, producto.nombre;
             """
-            cursor.execute(sql)
+            cursor.execute(query)
             sales = cursor.fetchall()
     except Exception as e:
         return f"Error: {str(e)}"
@@ -338,17 +338,17 @@ def get_query10():
 @app.route('/eliminarmodelo', methods=['GET'])
 def get_delete_model():
     try:
-        result = {}
         with connection.cursor() as cursor:
-            sql = """
-            DROP TABLE categoria;
-            DROP TABLE producto;
-            DROP TABLE pais;
-            DROP TABLE cliente;
-            DROP TABLE vendedor;
-            DROP TABLE orden;
-            """
-            cursor.execute(sql)
+            queries = [
+                "DROP TABLE categoria;",
+                "DROP TABLE producto;",
+                "DROP TABLE pais;",
+                "DROP TABLE cliente;",
+                "DROP TABLE vendedor;",
+                "DROP TABLE orden;"
+            ]
+            for query in queries:
+                cursor.execute(query)
             connection.commit()
     except Exception as e:
         return f"Error: {str(e)}"
@@ -360,57 +360,64 @@ def get_delete_model():
 @app.route('/crearmodelo', methods=['GET'])
 def get_create_model():
     try:
-        result = {}
         with connection.cursor() as cursor:
-            sql = """
-            CREATE TABLE categoria (
-                id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-                nombre VARCHAR (255) NOT NULL
-            );
-
-            CREATE TABLE producto (
-                id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-                nombre VARCHAR (255) NOT NULL,
-                precio DECIMAL (10, 2) NOT NULL,
-                id_categoria INT NOT NULL
-                -- FOREIGN KEY (id_categoria) REFERENCES categoria(id)
-            );
-
-            CREATE TABLE pais (
-                id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-                nombre VARCHAR (255) NOT NULL
-            );
-
-            CREATE TABLE cliente (
-                id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-                nombre VARCHAR (255) NOT NULL,
-                apellido VARCHAR (255) NOT NULL,
-                direccion VARCHAR (255) NOT NULL,
-                telefono VARCHAR (255) NOT NULL,
-                tarjeta_credito VARCHAR (255) NOT NULL,
-                edad INT NOT NULL,
-                salario VARCHAR (255) NOT NULL,
-                genero VARCHAR (255) NOT NULL,
-                id_pais INT NOT NULL
-            );
-
-            CREATE TABLE vendedor (
-                id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-                nombre VARCHAR (255) NOT NULL,
-                id_pais INT NOT NULL
-            );
-
-            CREATE TABLE orden (
-                id INT NOT NULL,
-                linea_orden INT NOT NULL,
-                fecha DATE NOT NULL,
-                id_cliente INT NOT NULL,
-                id_vendedor INT NOT NULL,
-                id_producto INT NOT NULL,
-                cantidad INT NOT NULL
-            );
-            """
-            cursor.execute(sql)
+            queries = [
+                """
+                CREATE TABLE categoria (
+                    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                    nombre VARCHAR (255) NOT NULL
+                    );
+                """,   
+                """
+                CREATE TABLE producto (
+                    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                    nombre VARCHAR (255) NOT NULL,
+                    precio DECIMAL (10, 2) NOT NULL,
+                    id_categoria INT NOT NULL
+                    -- FOREIGN KEY (id_categoria) REFERENCES categoria(id)
+                );
+                """,
+                """
+                CREATE TABLE pais (
+                    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                    nombre VARCHAR (255) NOT NULL
+                );
+                """,
+                """
+                CREATE TABLE cliente (
+                    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                    nombre VARCHAR (255) NOT NULL,
+                    apellido VARCHAR (255) NOT NULL,
+                    direccion VARCHAR (255) NOT NULL,
+                    telefono VARCHAR (255) NOT NULL,
+                    tarjeta_credito VARCHAR (255) NOT NULL,
+                    edad INT NOT NULL,
+                    salario VARCHAR (255) NOT NULL,
+                    genero VARCHAR (255) NOT NULL,
+                    id_pais INT NOT NULL
+                );
+                """,
+                """
+                CREATE TABLE vendedor (
+                    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                    nombre VARCHAR (255) NOT NULL,
+                    id_pais INT NOT NULL
+                );
+                """,
+                """
+                CREATE TABLE orden (
+                    id INT NOT NULL,
+                    linea_orden INT NOT NULL,
+                    fecha DATE NOT NULL,
+                    id_cliente INT NOT NULL,
+                    id_vendedor INT NOT NULL,
+                    id_producto INT NOT NULL,
+                    cantidad INT NOT NULL
+                );
+                """
+            ]
+            for query in queries:
+                cursor.execute(query)
             connection.commit()
     except Exception as e:
         return f"Error: {str(e)}"
@@ -422,17 +429,17 @@ def get_create_model():
 @app.route('/borrarinfodb', methods=['GET'])
 def get_delete_info():
     try:
-        result = {}
         with connection.cursor() as cursor:
-            sql = """
-            DELETE FROM orden;
-            DELETE FROM vendedor;
-            DELETE FROM cliente;
-            DELETE FROM pais;
-            DELETE FROM producto;
-            DELETE FROM categoria;
-            """
-            cursor.execute(sql)
+            queries = [
+                "DELETE FROM categoria;",
+                "DELETE FROM producto;",
+                "DELETE FROM pais;",
+                "DELETE FROM cliente;",
+                "DELETE FROM vendedor;",
+                "DELETE FROM orden;"
+            ]
+            for query in queries:
+                cursor.execute(query)
             connection.commit()
     except Exception as e:
         return f"Error: {str(e)}"
