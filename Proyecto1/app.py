@@ -25,16 +25,17 @@ def get_query1():
     try:
         with connection.cursor() as cursor:
             query = """
-            SELECT cliente.id AS id_cliente,
-                   cliente.nombre AS nombre_cliente,
-                   cliente.apellido AS apellido_cliente,
-                   pais.nombre AS pais_cliente,
-                   SUM(producto.precio * orden.cantidad) AS monto_total
+            SELECT cliente.id AS id_cliente, 
+                cliente.nombre AS nombre_cliente, 
+                cliente.apellido AS apellido_cliente, 
+                pais.nombre AS pais_cliente, 
+                SUM(producto.precio * detalle_orden.cantidad) AS monto_total
             FROM cliente
             JOIN orden ON cliente.id = orden.id_cliente
-            JOIN producto ON orden.id_producto = producto.id
+            JOIN detalle_orden ON orden.id = detalle_orden.id_orden
+            JOIN producto ON detalle_orden.id_producto = producto.id
             JOIN pais ON cliente.id_pais = pais.id
-            GROUP BY cliente.id
+            GROUP BY cliente.id, cliente.nombre, cliente.apellido, pais.nombre
             ORDER BY monto_total DESC
             LIMIT 1;
             """
@@ -340,12 +341,13 @@ def get_delete_model():
     try:
         with connection.cursor() as cursor:
             queries = [
-                "DROP TABLE categoria;",
-                "DROP TABLE producto;",
-                "DROP TABLE pais;",
+                "DROP TABLE detalle_orden;",
+                "DROP TABLE orden;",
                 "DROP TABLE cliente;",
                 "DROP TABLE vendedor;",
-                "DROP TABLE orden;"
+                "DROP TABLE pais;",
+                "DROP TABLE producto;",
+                "DROP TABLE categoria;"
             ]
             for query in queries:
                 cursor.execute(query)
@@ -362,19 +364,22 @@ def get_create_model():
     try:
         with connection.cursor() as cursor:
             queries = [
+                """DROP DATABASE IF EXISTS empresa;""",
+                """CREATE DATABASE empresa;""",
+                """USE empresa;""",
                 """
                 CREATE TABLE categoria (
                     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
                     nombre VARCHAR (255) NOT NULL
-                    );
+                );
                 """,   
                 """
                 CREATE TABLE producto (
                     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
                     nombre VARCHAR (255) NOT NULL,
                     precio DECIMAL (10, 2) NOT NULL,
-                    id_categoria INT NOT NULL
-                    -- FOREIGN KEY (id_categoria) REFERENCES categoria(id)
+                    id_categoria INT NOT NULL,
+                    FOREIGN KEY (id_categoria) REFERENCES categoria(id)
                 );
                 """,
                 """
@@ -392,27 +397,39 @@ def get_create_model():
                     telefono VARCHAR (255) NOT NULL,
                     tarjeta_credito VARCHAR (255) NOT NULL,
                     edad INT NOT NULL,
-                    salario VARCHAR (255) NOT NULL,
+                    salario DECIMAL (10,2) NOT NULL,
                     genero VARCHAR (255) NOT NULL,
-                    id_pais INT NOT NULL
+                    id_pais INT NOT NULL,
+                    FOREIGN KEY (id_pais) REFERENCES pais(id)
                 );
                 """,
                 """
                 CREATE TABLE vendedor (
                     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
                     nombre VARCHAR (255) NOT NULL,
-                    id_pais INT NOT NULL
+                    id_pais INT NOT NULL,
+                    FOREIGN KEY (id_pais) REFERENCES pais(id)
                 );
                 """,
                 """
                 CREATE TABLE orden (
-                    id INT NOT NULL,
-                    linea_orden INT NOT NULL,
+                    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
                     fecha DATE NOT NULL,
                     id_cliente INT NOT NULL,
+                    FOREIGN KEY (id_cliente) REFERENCES cliente(id)
+                );
+                """,
+                """
+                CREATE TABLE detalle_orden (
+                    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                    id_orden INT NOT NULL,
+                    linea_orden INT NOT NULL,
                     id_vendedor INT NOT NULL,
                     id_producto INT NOT NULL,
-                    cantidad INT NOT NULL
+                    cantidad INT NOT NULL,
+                    FOREIGN KEY (id_orden) REFERENCES orden(id),
+                    FOREIGN KEY (id_vendedor) REFERENCES vendedor(id),
+                    FOREIGN KEY (id_producto) REFERENCES producto(id)
                 );
                 """
             ]
@@ -431,13 +448,14 @@ def get_delete_info():
     try:
         with connection.cursor() as cursor:
             queries = [
-                "DELETE FROM categoria;",
-                "DELETE FROM producto;",
-                "DELETE FROM pais;",
+                "DELETE FROM detalle_orden;",
+                "DELETE FROM orden;",
                 "DELETE FROM cliente;",
                 "DELETE FROM vendedor;",
-                "DELETE FROM orden;"
-            ]
+                "DELETE FROM pais;",
+                "DELETE FROM producto;",
+                "DELETE FROM categoria;"
+            ]            
             for query in queries:
                 cursor.execute(query)
             connection.commit()
@@ -445,7 +463,7 @@ def get_delete_info():
         return f"Error: {str(e)}"
     finally:
         cursor.close()
-    return jsonify({'message': 'Información eliminada correctamente'})
+    return jsonify({'message': 'Informacion eliminada correctamente'})
 
 # Cargar datos a modelo
 @app.route('/cargarmodelo', methods=['GET'])
@@ -494,7 +512,7 @@ def get_load_model():
                 phone = row['Telefono']
                 card = row['Tarjeta']
                 age = row['Edad']
-                salary = row['Salario']
+                salary = float(row['Salario'])
                 gender = row['Genero']
                 id_country = row['id_pais']
                 sql = "INSERT INTO cliente (id, nombre, apellido, direccion, telefono, tarjeta_credito, edad, salario, genero, id_pais) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
@@ -513,23 +531,25 @@ def get_load_model():
             # Guardar cambios en la base de datos
             connection.commit()
         # Cargar ordenes en la base de datos
+        id_order_current = 0
         df_orders = pandas.read_csv('Proyecto1/archivos/ordenes.csv', delimiter=';')
         with connection.cursor() as cursor:
             for index, row in df_orders.iterrows():
+                if id_order_current != row['id_orden']:
+                    id_order_current = row['id_orden'] # Actualizar el id de la orden
+                    date = row['fecha_orden']
+                    date_datetime = datetime.strptime(date, "%d/%m/%Y")
+                    date_converted = date_datetime.strftime("%Y-%m-%d")
+                    id_customer = row['id_cliente']
+                    sql = "INSERT INTO orden (id, fecha, id_cliente) VALUES (%s, %s, %s)"
+                    cursor.execute(sql, (id_order_current, date_converted, id_customer))
                 id_order = row['id_orden']
                 line = row['linea_orden']
-                date = row['fecha_orden']
-                # Convertir la fecha a formato datetime
-                fecha_datetime = datetime.strptime(date, "%d/%m/%Y")
-                # Convertir la fecha a formato "AAAA-MM-DD"
-                fecha_convertida = fecha_datetime.strftime("%Y-%m-%d")
-                #
-                id_customer = row['id_cliente']
                 id_seller = row['id_vendedor']
                 id_product = row['id_producto']
                 amount = row['cantidad']
-                sql = "INSERT INTO orden (id, linea_orden, fecha, id_cliente, id_vendedor, id_producto, cantidad) VALUES (%s, %s, %s, %s, %s, %s, %s)"
-                cursor.execute(sql, (id_order, line, fecha_convertida, id_customer, id_seller, id_product, amount))
+                sql = "INSERT INTO detalle_orden (id, id_orden, linea_orden, id_vendedor, id_producto, cantidad) VALUES (%s, %s, %s, %s, %s, %s)"
+                cursor.execute(sql, (index+1,id_order, line, id_seller, id_product, amount))
             # Guardar cambios en la base de datos
             connection.commit()
         return jsonify({'message': 'Modelo cargado correctamente'})
