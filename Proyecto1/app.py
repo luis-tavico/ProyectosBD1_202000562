@@ -17,7 +17,7 @@ connection = pymysql.connect(
 # Definir una ruta para la pagina principal
 @app.route('/')
 def index():
-    return 'Bienvenido a la API de Proyecto 1'
+    return 'Bienvenido a la API del Proyecto 1'
 
 # Mostrar el cliente que mas ha comprado. Se debe de mostrar el id del cliente, nombre, apellido, pais y monto total.
 @app.route('/consulta1', methods=['GET'])
@@ -25,17 +25,17 @@ def get_query1():
     try:
         with connection.cursor() as cursor:
             query = """
-            SELECT cliente.id AS id_cliente, 
-                cliente.nombre AS nombre_cliente, 
-                cliente.apellido AS apellido_cliente, 
-                pais.nombre AS pais_cliente, 
-                SUM(producto.precio * detalle_orden.cantidad) AS monto_total
+            SELECT cliente.id AS id_cliente,
+                cliente.nombre AS nombre_cliente,
+                cliente.apellido AS apellido_cliente,
+                pais.nombre AS pais_cliente,
+                SUM(detalle_orden.cantidad * producto.precio) AS monto_total
             FROM cliente
-            JOIN orden ON cliente.id = orden.id_cliente
-            JOIN detalle_orden ON orden.id = detalle_orden.id_orden
-            JOIN producto ON detalle_orden.id_producto = producto.id
-            JOIN pais ON cliente.id_pais = pais.id
-            GROUP BY cliente.id, cliente.nombre, cliente.apellido, pais.nombre
+            JOIN orden ON cliente.id = orden.cliente_id
+            JOIN detalle_orden ON orden.id = detalle_orden.orden_id
+            JOIN producto ON detalle_orden.producto_id = producto.id
+            JOIN pais ON cliente.pais_id = pais.id
+            GROUP BY cliente.id
             ORDER BY monto_total DESC
             LIMIT 1;
             """
@@ -56,15 +56,15 @@ def get_query2():
             # Buscar producto mas comprado
             query = """
             SELECT producto.id AS id_producto,
-                   producto.nombre AS nombre_producto,
-                   categoria.nombre AS categoria_producto,
-                   SUM(orden.cantidad) AS cantidad_total,
-                   SUM(producto.precio * orden.cantidad) AS monto_total
+                producto.nombre AS nombre_producto,
+                categoria.nombre AS categoria_producto,
+                SUM(detalle_orden.cantidad) AS cantidad_unidades,
+                SUM(detalle_orden.cantidad * producto.precio) AS monto_vendido
             FROM producto
-            JOIN orden ON producto.id = orden.id_producto
-            JOIN categoria ON producto.id_categoria = categoria.id
+            JOIN detalle_orden ON producto.id = detalle_orden.producto_id
+            JOIN categoria ON producto.categoria_id = categoria.id
             GROUP BY producto.id
-            ORDER BY cantidad_total DESC
+            ORDER BY cantidad_unidades DESC
             LIMIT 1;
             """
             cursor.execute(query)
@@ -73,15 +73,15 @@ def get_query2():
             # Buscar producto menos comprado
             query = """
             SELECT producto.id AS id_producto,
-                   producto.nombre AS nombre_producto,
-                   categoria.nombre AS categoria_producto,
-                   SUM(orden.cantidad) AS cantidad_total,
-                   SUM(producto.precio * orden.cantidad) AS monto_total
+                producto.nombre AS nombre_producto,
+                categoria.nombre AS categoria_producto,
+                SUM(detalle_orden.cantidad) AS cantidad_unidades,
+                SUM(detalle_orden.cantidad * producto.precio) AS monto_vendido
             FROM producto
-            JOIN orden ON producto.id = orden.id_producto
-            JOIN categoria ON producto.id_categoria = categoria.id
+            JOIN detalle_orden ON producto.id = detalle_orden.producto_id
+            JOIN categoria ON producto.categoria_id = categoria.id
             GROUP BY producto.id
-            ORDER BY cantidad_total ASC
+            ORDER BY cantidad_unidades ASC
             LIMIT 1;
             """
             cursor.execute(query)
@@ -100,11 +100,11 @@ def get_query3():
         with connection.cursor() as cursor:
             query = """
             SELECT vendedor.id AS id_vendedor,
-                   vendedor.nombre AS nombre_vendedor,
-                   SUM(producto.precio * orden.cantidad) AS monto_total_vendido
+                vendedor.nombre AS nombre_vendedor,
+                SUM(detalle_orden.cantidad * producto.precio) AS monto_total_vendido
             FROM vendedor
-            JOIN orden ON vendedor.id = orden.id_vendedor
-            JOIN producto ON orden.id_producto = producto.id
+            JOIN detalle_orden ON vendedor.id = detalle_orden.vendedor_id
+            JOIN producto ON detalle_orden.producto_id = producto.id
             GROUP BY vendedor.id
             ORDER BY monto_total_vendido DESC
             LIMIT 1;
@@ -125,31 +125,32 @@ def get_query4():
         with connection.cursor() as cursor:
             # Buscar el pais que mas ha vendido
             query = """
-            SELECT vendedor.id_pais AS id_pais,
-                   pais.nombre AS nombre_pais,
-                   SUM(orden.cantidad * producto.precio) AS monto_total_vendido
-            FROM orden
-            JOIN vendedor ON orden.id_vendedor = vendedor.id
-            JOIN pais ON vendedor.id_pais = pais.id
-            JOIN producto ON orden.id_producto = producto.id
-            GROUP BY vendedor.id_pais
+            SELECT pais.nombre AS nombre_pais,
+                SUM(detalle_orden.cantidad * producto.precio) AS monto_total_vendido
+            FROM pais
+            JOIN cliente ON pais.id = cliente.pais_id
+            JOIN orden ON cliente.id = orden.cliente_id
+            JOIN detalle_orden ON orden.id = detalle_orden.orden_id
+            JOIN producto ON detalle_orden.producto_id = producto.id
+            GROUP BY pais.id
             ORDER BY monto_total_vendido DESC
-            LIMIT 1;
+            LIMIT 1
             """
             cursor.execute(query)
             country = cursor.fetchone()
             result['pais_que_mas_ha_vendido'] = country
             # Buscar el pais que menos ha vendido
             query = """
-            SELECT vendedor.id_pais AS id_pais,
-                   pais.nombre AS nombre_pais,
-                   SUM(orden.cantidad * producto.precio) AS monto_total_vendido
-            FROM orden
-            JOIN vendedor ON orden.id_vendedor = vendedor.id
-            JOIN pais ON vendedor.id_pais = pais.id
-            JOIN producto ON orden.id_producto = producto.id
-            GROUP BY vendedor.id_pais
-            ORDER BY SUM(orden.cantidad * producto.precio) ASC
+            SELECT pais.nombre AS nombre_pais,
+                SUM(detalle_orden.cantidad * producto.precio) AS monto_total_vendido
+            FROM pais
+            JOIN cliente ON pais.id = cliente.pais_id
+            JOIN orden ON cliente.id = orden.cliente_id
+            JOIN detalle_orden ON orden.id = detalle_orden.orden_id
+            JOIN producto ON detalle_orden.producto_id = producto.id
+            GROUP BY pais.id
+            ORDER BY monto_total_vendido ASC
+            LIMIT 1;
             """
             cursor.execute(query)
             country = cursor.fetchone()
@@ -166,15 +167,16 @@ def get_query5():
     try:
         with connection.cursor() as cursor:
             query = """
-            SELECT vendedor.id_pais AS id_pais,
-                   pais.nombre AS nombre_pais,
-                   SUM(orden.cantidad * producto.precio) AS monto_total_vendido
-            FROM orden
-            JOIN vendedor ON orden.id_vendedor = vendedor.id
-            JOIN pais ON vendedor.id_pais = pais.id
-            JOIN producto ON orden.id_producto = producto.id
-            GROUP BY vendedor.id_pais
-            ORDER BY monto_total_vendido ASC
+            SELECT pais.id AS id_pais,
+                pais.nombre AS nombre_pais,
+                SUM(detalle_orden.cantidad * producto.precio) AS monto_total_comprado
+            FROM pais
+            JOIN cliente ON pais.id = cliente.pais_id
+            JOIN orden ON cliente.id = orden.cliente_id
+            JOIN detalle_orden ON orden.id = detalle_orden.orden_id
+            JOIN producto ON detalle_orden.producto_id = producto.id
+            GROUP BY pais.id
+            ORDER BY monto_total_comprado ASC
             LIMIT 5;
             """
             cursor.execute(query)
@@ -194,12 +196,12 @@ def get_query6():
             # Buscar categoria que mas se ha comprado
             query = """
             SELECT categoria.nombre AS nombre_categoria,
-                   SUM(orden.cantidad) AS cantidad_unidades
-            FROM orden
-            JOIN producto ON orden.id_producto = producto.id
-            JOIN categoria ON producto.id_categoria = categoria.id
-            GROUP BY producto.id_categoria
-            ORDER BY SUM(orden.cantidad) DESC
+                SUM(detalle_orden.cantidad) AS cantidad_total_comprada
+            FROM categoria
+            JOIN producto ON categoria.id = producto.categoria_id
+            JOIN detalle_orden ON producto.id = detalle_orden.producto_id
+            GROUP BY categoria.id
+            ORDER BY cantidad_total_comprada DESC
             LIMIT 1
             """
             cursor.execute(query)
@@ -207,12 +209,12 @@ def get_query6():
             # Buscar categoria que menos se ha comprado
             query = """
             SELECT categoria.nombre AS nombre_categoria,
-                   SUM(orden.cantidad) AS cantidad_unidades
-            FROM orden
-            JOIN producto ON orden.id_producto = producto.id
-            JOIN categoria ON producto.id_categoria = categoria.id
-            GROUP BY producto.id_categoria
-            ORDER BY SUM(orden.cantidad) ASC
+                SUM(detalle_orden.cantidad) AS cantidad_total_comprada
+            FROM categoria
+            JOIN producto ON categoria.id = producto.categoria_id
+            JOIN detalle_orden ON producto.id = detalle_orden.producto_id
+            GROUP BY categoria.id
+            ORDER BY cantidad_total_comprada ASC
             LIMIT 1;
             """
             cursor.execute(query)
@@ -224,26 +226,33 @@ def get_query6():
     return jsonify(result)
 
 # Mostrar la categoria mas comprada por cada país. Se debe de mostrar el nombre del pais, nombre de la categoria y cantidad de unidades.
+# NO JALA :(
 @app.route('/consulta7', methods=['GET'])
 def get_query7():
     try:
         with connection.cursor() as cursor:
             # Buscar la categoria mas comprada por cada pais
             query = """
-            SELECT nombre_pais, nombre_categoria, cantidad_unidades
-            FROM (
-                SELECT pais.nombre AS nombre_pais,
-                    categoria.nombre AS nombre_categoria,
-                    SUM(orden.cantidad) AS cantidad_unidades,
-                    ROW_NUMBER() OVER (PARTITION BY pais.id ORDER BY SUM(orden.cantidad) DESC) AS ranking
-                FROM orden
-                JOIN vendedor ON orden.id_vendedor = vendedor.id
-                JOIN pais ON vendedor.id_pais = pais.id
-                JOIN producto ON orden.id_producto = producto.id
-                JOIN categoria ON producto.id_categoria = categoria.id
+            SELECT pais.nombre AS nombre_pais,
+                categoria.nombre AS nombre_categoria,
+                SUM(detalle_orden.cantidad) AS cantidad_total_comprada
+            FROM pais
+            JOIN cliente ON pais.id = cliente.pais_id
+            JOIN orden ON cliente.id = orden.cliente_id
+            JOIN detalle_orden ON orden.id = detalle_orden.orden_id
+            JOIN producto ON detalle_orden.producto_id = producto.id
+            JOIN categoria ON producto.categoria_id = categoria.id
+            JOIN (
+                SELECT pais.id AS pais_id, categoria.id AS categoria_id, SUM(detalle_orden.cantidad) AS total_por_categoria
+                FROM pais
+                JOIN cliente ON pais.id = cliente.pais_id
+                JOIN orden ON cliente.id = orden.cliente_id
+                JOIN detalle_orden ON orden.id = detalle_orden.orden_id
+                JOIN producto ON detalle_orden.producto_id = producto.id
+                JOIN categoria ON producto.categoria_id = categoria.id
                 GROUP BY pais.id, categoria.id
-            ) AS rankings
-            WHERE ranking = 1;
+            ) AS subquery ON pais.id = subquery.pais_id AND categoria.id = subquery.categoria_id AND detalle_orden.cantidad = subquery.total_por_categoria
+            GROUP BY pais.nombre, categoria.nombre;
             """
             cursor.execute(query)
             categories = cursor.fetchall()
@@ -260,13 +269,14 @@ def get_query8():
         with connection.cursor() as cursor:
             query = """
             SELECT MONTH(orden.fecha) AS numero_mes,
-                   SUM(orden.cantidad * producto.precio) AS monto_total
+                SUM(detalle_orden.cantidad * producto.precio) AS monto_total
             FROM orden
-            JOIN vendedor ON orden.id_vendedor = vendedor.id
-            JOIN pais ON vendedor.id_pais = pais.id
-            JOIN producto ON orden.id_producto = producto.id
+            JOIN cliente ON orden.cliente_id = cliente.id
+            JOIN pais ON cliente.pais_id = pais.id
+            JOIN detalle_orden ON orden.id = detalle_orden.orden_id
+            JOIN producto ON detalle_orden.producto_id = producto.id
             WHERE pais.nombre = 'Inglaterra'
-            GROUP BY MONTH(orden.fecha);
+            GROUP BY numero_mes;
             """
             cursor.execute(query)
             sales = cursor.fetchall()
@@ -276,54 +286,54 @@ def get_query8():
         cursor.close()
     return jsonify(sales)
 
-# # Mostrar el mes con mas y menos ventas. Se debe de mostrar el numero de mes y monto. (Una sola consulta).
+# Mostrar el mes con mas y menos ventas. Se debe de mostrar el numero de mes y monto. (Una sola consulta).
 @app.route('/consulta9', methods=['GET'])
 def get_query9():
     try:
         result = {}
         with connection.cursor() as cursor:
             query = """
-            (
-                SELECT MONTH(orden.fecha) AS numero_mes,
-                    SUM(orden.cantidad * producto.precio) AS monto_total_ventas
-                FROM orden
-                JOIN producto ON orden.id_producto = producto.id
-                GROUP BY MONTH(orden.fecha)
-                ORDER BY monto_total_ventas DESC
-                LIMIT 1
-            )
-            UNION
-            (
-                SELECT MONTH(orden.fecha) AS numero_mes,
-                    SUM(orden.cantidad * producto.precio) AS monto_total_ventas
-                FROM orden
-                JOIN producto ON orden.id_producto = producto.id
-                GROUP BY MONTH(orden.fecha)
-                ORDER BY monto_total_ventas ASC
-                LIMIT 1
-            );
+            SELECT MONTH(orden.fecha) AS numero_mes,
+                SUM(detalle_orden.cantidad * producto.precio) AS monto_total
+            FROM orden
+            JOIN detalle_orden ON orden.id = detalle_orden.orden_id
+            JOIN producto ON detalle_orden.producto_id = producto.id
+            GROUP BY numero_mes
+            ORDER BY monto_total DESC
+            LIMIT 1;
             """
             cursor.execute(query)
-            sales = cursor.fetchall()
+            result['mes_mas_ventas'] = cursor.fetchone()
+            query = """
+            SELECT MONTH(orden.fecha) AS numero_mes,
+                SUM(detalle_orden.cantidad * producto.precio) AS monto_total
+            FROM orden
+            JOIN detalle_orden ON orden.id = detalle_orden.orden_id
+            JOIN producto ON detalle_orden.producto_id = producto.id
+            GROUP BY numero_mes
+            ORDER BY monto_total ASC
+            LIMIT 1;
+            """
+            cursor.execute(query)
+            result['mes_menos_ventas'] = cursor.fetchone()
     except Exception as e:
         return f"Error: {str(e)}"
     finally:
         cursor.close()
-    return jsonify(sales)
+    return jsonify(result)
 
 # Mostrar las ventas de cada producto de la categoria deportes. Se debe de mostrar el id del producto, nombre y monto.
 @app.route('/consulta10', methods=['GET'])
 def get_query10():
     try:
-        result = {}
         with connection.cursor() as cursor:
             query = """
             SELECT producto.id AS id_producto,
-                   producto.nombre AS nombre_producto,
-                   SUM(orden.cantidad * producto.precio) AS monto_total
-            FROM orden
-            JOIN producto ON orden.id_producto = producto.id
-            JOIN categoria ON producto.id_categoria = categoria.id
+                producto.nombre AS nombre_producto,
+                SUM(detalle_orden.cantidad * producto.precio) AS monto_total
+            FROM producto
+            JOIN categoria ON producto.categoria_id = categoria.id
+            JOIN detalle_orden ON producto.id = detalle_orden.producto_id
             WHERE categoria.nombre = 'Deportes'
             GROUP BY producto.id, producto.nombre;
             """
@@ -378,8 +388,8 @@ def get_create_model():
                     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
                     nombre VARCHAR (255) NOT NULL,
                     precio DECIMAL (10, 2) NOT NULL,
-                    id_categoria INT NOT NULL,
-                    FOREIGN KEY (id_categoria) REFERENCES categoria(id)
+                    categoria_id INT NOT NULL,
+                    FOREIGN KEY (categoria_id) REFERENCES categoria(id)
                 );
                 """,
                 """
@@ -399,37 +409,37 @@ def get_create_model():
                     edad INT NOT NULL,
                     salario DECIMAL (10,2) NOT NULL,
                     genero VARCHAR (255) NOT NULL,
-                    id_pais INT NOT NULL,
-                    FOREIGN KEY (id_pais) REFERENCES pais(id)
+                    pais_id INT NOT NULL,
+                    FOREIGN KEY (pais_id) REFERENCES pais(id)
                 );
                 """,
                 """
                 CREATE TABLE vendedor (
                     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
                     nombre VARCHAR (255) NOT NULL,
-                    id_pais INT NOT NULL,
-                    FOREIGN KEY (id_pais) REFERENCES pais(id)
+                    pais_id INT NOT NULL,
+                    FOREIGN KEY (pais_id) REFERENCES pais(id)
                 );
                 """,
                 """
                 CREATE TABLE orden (
                     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
                     fecha DATE NOT NULL,
-                    id_cliente INT NOT NULL,
-                    FOREIGN KEY (id_cliente) REFERENCES cliente(id)
+                    cliente_id INT NOT NULL,
+                    FOREIGN KEY (cliente_id) REFERENCES cliente(id)
                 );
                 """,
                 """
                 CREATE TABLE detalle_orden (
                     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-                    id_orden INT NOT NULL,
                     linea_orden INT NOT NULL,
-                    id_vendedor INT NOT NULL,
-                    id_producto INT NOT NULL,
                     cantidad INT NOT NULL,
-                    FOREIGN KEY (id_orden) REFERENCES orden(id),
-                    FOREIGN KEY (id_vendedor) REFERENCES vendedor(id),
-                    FOREIGN KEY (id_producto) REFERENCES producto(id)
+                    producto_id INT NOT NULL,
+                    vendedor_id INT NOT NULL,
+                    orden_id INT NOT NULL,
+                    FOREIGN KEY (producto_id) REFERENCES producto(id),
+                    FOREIGN KEY (vendedor_id) REFERENCES vendedor(id),
+                    FOREIGN KEY (orden_id) REFERENCES orden(id)
                 );
                 """
             ]
@@ -487,7 +497,7 @@ def get_load_model():
                 name = row['Nombre']
                 price = float(row['Precio'])
                 id_category = row['id_categoria']
-                sql = "INSERT INTO producto (id, nombre, precio, id_categoria) VALUES (%s, %s, %s, %s)"
+                sql = "INSERT INTO producto (id, nombre, precio, categoria_id) VALUES (%s, %s, %s, %s)"
                 cursor.execute(sql, (id_product, name, price, id_category))
             # Guardar cambios en la base de datos
             connection.commit()
@@ -515,7 +525,7 @@ def get_load_model():
                 salary = float(row['Salario'])
                 gender = row['Genero']
                 id_country = row['id_pais']
-                sql = "INSERT INTO cliente (id, nombre, apellido, direccion, telefono, tarjeta_credito, edad, salario, genero, id_pais) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+                sql = "INSERT INTO cliente (id, nombre, apellido, direccion, telefono, tarjeta_credito, edad, salario, genero, pais_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
                 cursor.execute(sql, (id_customer, name, lastname, address, phone, card, age, salary, gender, id_country))
             # Guardar cambios en la base de datos
             connection.commit()
@@ -526,7 +536,7 @@ def get_load_model():
                 id_seller = row['id_vendedor']
                 name = row['nombre']
                 id_country = row['id_pais']
-                sql = "INSERT INTO vendedor (id, nombre, id_pais) VALUES (%s, %s, %s)"
+                sql = "INSERT INTO vendedor (id, nombre, pais_id) VALUES (%s, %s, %s)"
                 cursor.execute(sql, (id_seller, name, id_country))
             # Guardar cambios en la base de datos
             connection.commit()
@@ -541,15 +551,15 @@ def get_load_model():
                     date_datetime = datetime.strptime(date, "%d/%m/%Y")
                     date_converted = date_datetime.strftime("%Y-%m-%d")
                     id_customer = row['id_cliente']
-                    sql = "INSERT INTO orden (id, fecha, id_cliente) VALUES (%s, %s, %s)"
+                    sql = "INSERT INTO orden (id, fecha, cliente_id) VALUES (%s, %s, %s)"
                     cursor.execute(sql, (id_order_current, date_converted, id_customer))
-                id_order = row['id_orden']
                 line = row['linea_orden']
-                id_seller = row['id_vendedor']
-                id_product = row['id_producto']
                 amount = row['cantidad']
-                sql = "INSERT INTO detalle_orden (id, id_orden, linea_orden, id_vendedor, id_producto, cantidad) VALUES (%s, %s, %s, %s, %s, %s)"
-                cursor.execute(sql, (index+1,id_order, line, id_seller, id_product, amount))
+                id_product = row['id_producto']
+                id_seller = row['id_vendedor']
+                id_order = row['id_orden']
+                sql = "INSERT INTO detalle_orden (id, linea_orden, cantidad, producto_id, vendedor_id, orden_id) VALUES (%s, %s, %s, %s, %s, %s)"
+                cursor.execute(sql, (index+1, line, amount, id_product, id_seller, id_order))
             # Guardar cambios en la base de datos
             connection.commit()
         return jsonify({'message': 'Modelo cargado correctamente'})
