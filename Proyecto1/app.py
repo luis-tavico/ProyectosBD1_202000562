@@ -121,45 +121,39 @@ def get_query3():
 @app.route('/consulta4', methods=['GET'])
 def get_query4():
     try:
-        result = {}
         with connection.cursor() as cursor:
-            # Buscar el pais que mas ha vendido
             query = """
-            SELECT pais.nombre AS nombre_pais,
+            SELECT * FROM (
+                SELECT pais.nombre AS nombre_pais,
                 SUM(detalle_orden.cantidad * producto.precio) AS monto_total_vendido
-            FROM pais
-            JOIN cliente ON pais.id = cliente.pais_id
-            JOIN orden ON cliente.id = orden.cliente_id
-            JOIN detalle_orden ON orden.id = detalle_orden.orden_id
-            JOIN producto ON detalle_orden.producto_id = producto.id
-            GROUP BY pais.id
-            ORDER BY monto_total_vendido DESC
-            LIMIT 1
+                FROM detalle_orden
+                INNER JOIN vendedor ON detalle_orden.vendedor_id = vendedor.id
+                INNER JOIN pais ON vendedor.pais_id = pais.id
+                INNER JOIN producto ON detalle_orden.producto_id = producto.id
+                GROUP BY pais.nombre
+                ORDER BY monto_total_vendido DESC
+                LIMIT 1
+            ) AS max_total
+            UNION
+            SELECT * FROM (
+                SELECT pais.nombre AS nombre_pais,
+                SUM(detalle_orden.cantidad * producto.precio) AS monto_total_vendido
+                FROM detalle_orden
+                INNER JOIN vendedor ON detalle_orden.vendedor_id = vendedor.id
+                INNER JOIN pais ON vendedor.pais_id = pais.id
+                INNER JOIN producto ON detalle_orden.producto_id = producto.id
+                GROUP BY pais.nombre
+                ORDER BY monto_total_vendido ASC
+                LIMIT 1
+            ) AS min_total;
             """
             cursor.execute(query)
-            country = cursor.fetchone()
-            result['pais_que_mas_ha_vendido'] = country
-            # Buscar el pais que menos ha vendido
-            query = """
-            SELECT pais.nombre AS nombre_pais,
-                SUM(detalle_orden.cantidad * producto.precio) AS monto_total_vendido
-            FROM pais
-            JOIN cliente ON pais.id = cliente.pais_id
-            JOIN orden ON cliente.id = orden.cliente_id
-            JOIN detalle_orden ON orden.id = detalle_orden.orden_id
-            JOIN producto ON detalle_orden.producto_id = producto.id
-            GROUP BY pais.id
-            ORDER BY monto_total_vendido ASC
-            LIMIT 1;
-            """
-            cursor.execute(query)
-            country = cursor.fetchone()
-            result['pais_que_menos_ha_vendido'] = country
+            countries = cursor.fetchall()
     except Exception as e:
         return f"Error: {str(e)}"
     finally:
         cursor.close()
-    return jsonify(result)
+    return jsonify(countries)
 
 # Top 5 de paises que mas han comprado en orden ascendente. Se le solicita mostrar el id del pais, nombre y monto total.
 @app.route('/consulta5', methods=['GET'])
@@ -195,30 +189,30 @@ def get_query6():
         with connection.cursor() as cursor:
             # Buscar categoria que mas se ha comprado
             query = """
-            SELECT categoria.nombre AS nombre_categoria,
-                SUM(detalle_orden.cantidad) AS cantidad_total_comprada
-            FROM categoria
-            JOIN producto ON categoria.id = producto.categoria_id
-            JOIN detalle_orden ON producto.id = detalle_orden.producto_id
-            GROUP BY categoria.id
-            ORDER BY cantidad_total_comprada DESC
-            LIMIT 1
+            SELECT * FROM (
+                SELECT categoria.nombre AS nombre_categoria, 
+                SUM(detalle_orden.cantidad) AS cantidad_total
+                FROM detalle_orden
+                INNER JOIN producto ON detalle_orden.producto_id = producto.id
+                INNER JOIN categoria ON producto.categoria_id = categoria.id
+                GROUP BY categoria.nombre
+                ORDER BY cantidad_total DESC
+                LIMIT 1
+            ) AS max_total
+            UNION
+            SELECT * FROM (
+                SELECT categoria.nombre AS nombre_categoria, 
+                SUM(detalle_orden.cantidad) AS cantidad_total
+                FROM detalle_orden
+                INNER JOIN producto ON detalle_orden.producto_id = producto.id
+                INNER JOIN categoria ON producto.categoria_id = categoria.id
+                GROUP BY categoria.nombre
+                ORDER BY cantidad_total ASC
+                LIMIT 1
+            ) AS min_total;
             """
             cursor.execute(query)
-            result['categoria_mas_comprada'] = cursor.fetchone()
-            # Buscar categoria que menos se ha comprado
-            query = """
-            SELECT categoria.nombre AS nombre_categoria,
-                SUM(detalle_orden.cantidad) AS cantidad_total_comprada
-            FROM categoria
-            JOIN producto ON categoria.id = producto.categoria_id
-            JOIN detalle_orden ON producto.id = detalle_orden.producto_id
-            GROUP BY categoria.id
-            ORDER BY cantidad_total_comprada ASC
-            LIMIT 1;
-            """
-            cursor.execute(query)
-            result['categoria_menos_comprada'] = cursor.fetchone()
+            result['categoria_mas_comprada'] = cursor.fetchall()
     except Exception as e:
         return f"Error: {str(e)}"
     finally:
@@ -226,33 +220,29 @@ def get_query6():
     return jsonify(result)
 
 # Mostrar la categoria mas comprada por cada país. Se debe de mostrar el nombre del pais, nombre de la categoria y cantidad de unidades.
-# NO JALA :(
 @app.route('/consulta7', methods=['GET'])
 def get_query7():
     try:
         with connection.cursor() as cursor:
             # Buscar la categoria mas comprada por cada pais
             query = """
-            SELECT pais.nombre AS nombre_pais,
-                categoria.nombre AS nombre_categoria,
-                SUM(detalle_orden.cantidad) AS cantidad_total_comprada
-            FROM pais
-            JOIN cliente ON pais.id = cliente.pais_id
-            JOIN orden ON cliente.id = orden.cliente_id
-            JOIN detalle_orden ON orden.id = detalle_orden.orden_id
-            JOIN producto ON detalle_orden.producto_id = producto.id
-            JOIN categoria ON producto.categoria_id = categoria.id
-            JOIN (
-                SELECT pais.id AS pais_id, categoria.id AS categoria_id, SUM(detalle_orden.cantidad) AS total_por_categoria
-                FROM pais
-                JOIN cliente ON pais.id = cliente.pais_id
-                JOIN orden ON cliente.id = orden.cliente_id
-                JOIN detalle_orden ON orden.id = detalle_orden.orden_id
+            SELECT
+                resultado_pais.*
+            FROM
+                (SELECT
+                    pais.nombre AS pais,
+                    categoria.nombre AS categoría,
+                    SUM(detalle_orden.cantidad) AS cantidad_unidades
+                FROM detalle_orden
                 JOIN producto ON detalle_orden.producto_id = producto.id
                 JOIN categoria ON producto.categoria_id = categoria.id
-                GROUP BY pais.id, categoria.id
-            ) AS subquery ON pais.id = subquery.pais_id AND categoria.id = subquery.categoria_id AND detalle_orden.cantidad = subquery.total_por_categoria
-            GROUP BY pais.nombre, categoria.nombre;
+                JOIN orden ON detalle_orden.orden_id = orden.id
+                JOIN cliente ON orden.cliente_id = cliente.id
+                JOIN pais ON cliente.pais_id = pais.id
+                GROUP BY pais.nombre, categoria.nombre
+                ORDER BY pais.nombre, cantidad_unidades DESC) AS resultado_pais
+            GROUP BY resultado_pais.pais
+            ORDER BY resultado_pais.pais;
             """
             cursor.execute(query)
             categories = cursor.fetchall()
@@ -269,14 +259,15 @@ def get_query8():
         with connection.cursor() as cursor:
             query = """
             SELECT MONTH(orden.fecha) AS numero_mes,
-                SUM(detalle_orden.cantidad * producto.precio) AS monto_total
-            FROM orden
+            SUM(detalle_orden.cantidad * producto.precio) AS monto_total
+            FROM detalle_orden
+            JOIN orden ON detalle_orden.orden_id = orden.id
             JOIN cliente ON orden.cliente_id = cliente.id
             JOIN pais ON cliente.pais_id = pais.id
-            JOIN detalle_orden ON orden.id = detalle_orden.orden_id
             JOIN producto ON detalle_orden.producto_id = producto.id
             WHERE pais.nombre = 'Inglaterra'
-            GROUP BY numero_mes;
+            GROUP BY MONTH(orden.fecha)
+            ORDER BY numero_mes;
             """
             cursor.execute(query)
             sales = cursor.fetchall()
@@ -290,37 +281,39 @@ def get_query8():
 @app.route('/consulta9', methods=['GET'])
 def get_query9():
     try:
-        result = {}
         with connection.cursor() as cursor:
             query = """
-            SELECT MONTH(orden.fecha) AS numero_mes,
-                SUM(detalle_orden.cantidad * producto.precio) AS monto_total
+            SELECT mes, monto FROM (
+            SELECT 
+            MONTH(orden.fecha) AS mes,
+            SUM(detalle_orden.cantidad * producto.precio) AS monto
             FROM orden
-            JOIN detalle_orden ON orden.id = detalle_orden.orden_id
-            JOIN producto ON detalle_orden.producto_id = producto.id
-            GROUP BY numero_mes
-            ORDER BY monto_total DESC
-            LIMIT 1;
+            INNER JOIN detalle_orden ON orden.id = detalle_orden.orden_id
+            INNER JOIN producto ON detalle_orden.producto_id = producto.id
+            GROUP BY MONTH(orden.fecha)
+            ORDER BY monto DESC
+            LIMIT 1
+            ) AS maximo_venta
+            UNION
+            SELECT mes, monto FROM ( 
+            SELECT 
+            MONTH(orden.fecha) AS mes,
+            SUM(detalle_orden.cantidad * producto.precio) AS monto
+            FROM orden 
+            INNER JOIN detalle_orden ON orden.id = detalle_orden.orden_id
+            INNER JOIN producto ON detalle_orden.producto_id = producto.id
+            GROUP BY MONTH(orden.fecha)
+            ORDER BY monto ASC
+            LIMIT 1
+            ) AS minimo_venta;
             """
             cursor.execute(query)
-            result['mes_mas_ventas'] = cursor.fetchone()
-            query = """
-            SELECT MONTH(orden.fecha) AS numero_mes,
-                SUM(detalle_orden.cantidad * producto.precio) AS monto_total
-            FROM orden
-            JOIN detalle_orden ON orden.id = detalle_orden.orden_id
-            JOIN producto ON detalle_orden.producto_id = producto.id
-            GROUP BY numero_mes
-            ORDER BY monto_total ASC
-            LIMIT 1;
-            """
-            cursor.execute(query)
-            result['mes_menos_ventas'] = cursor.fetchone()
+            months = cursor.fetchall()
     except Exception as e:
         return f"Error: {str(e)}"
     finally:
         cursor.close()
-    return jsonify(result)
+    return jsonify(months)
 
 # Mostrar las ventas de cada producto de la categoria deportes. Se debe de mostrar el id del producto, nombre y monto.
 @app.route('/consulta10', methods=['GET'])
