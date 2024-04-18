@@ -5,7 +5,7 @@ CREATE DATABASE empresa;
 USE empresa;
 
 CREATE TABLE TipoCliente (
-	idTipoCliente INT PRIMARY KEY AUTO_INCREMENT,
+    idTipoCliente INT PRIMARY KEY AUTO_INCREMENT,
     nombre VARCHAR(255),
     descripcion VARCHAR(255)
 );
@@ -436,7 +436,12 @@ BEGIN
     END IF;
     
     IF p_tipoTransaccion_id = 1 THEN
-		SELECT * FROM Compra;
+        SELECT 
+            c.importeCompra 
+        FROM 
+            Compra
+        WHERE 
+            c.idCompra = p_idGestion;
 	ELSEIF p_tipoTransaccion_id = 2 THEN
 		SELECT * FROM Deposito;
     ELSEIF p_tipoTransaccion_id = 3 THEN
@@ -445,7 +450,7 @@ BEGIN
 		SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'El tipo de transaccion no existe.';
     END IF;
-    
+  
 	-- UPDATE Cuenta
     -- SET saldoCuenta = saldoCuenta + p_montoAumento
     -- WHERE idCuenta = p_idCuenta;
