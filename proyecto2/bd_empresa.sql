@@ -20,7 +20,7 @@ CREATE TABLE Cliente (
     contraseña VARCHAR(255) NOT NULL,
     fechaCreacion DATE,
     tipoCliente_id INT NOT NULL,
-	FOREIGN KEY (tipoCliente_id) REFERENCES TipoCliente(idTipoCliente)
+    FOREIGN KEY (tipoCliente_id) REFERENCES TipoCliente(idTipoCliente)
 );
 
 CREATE TABLE TipoCuenta (
@@ -38,8 +38,8 @@ CREATE TABLE Cuenta (
     otrosDetalles VARCHAR(255),
     tipoCuenta_id INT NOT NULL,
     cliente_id INT NOT NULL,
-	FOREIGN KEY (tipoCuenta_id) REFERENCES TipoCuenta(codigo),
-	FOREIGN KEY (cliente_id) REFERENCES Cliente(idCliente)
+    FOREIGN KEY (tipoCuenta_id) REFERENCES TipoCuenta(codigo),
+    FOREIGN KEY (cliente_id) REFERENCES Cliente(idCliente)
 );
 
 CREATE TABLE ProductoServicio (
@@ -54,10 +54,10 @@ CREATE TABLE Compra (
     fecha DATE NOT NULL,
     importeCompra DECIMAL(12,2), -- monto
     otrosDetalles VARCHAR(255),
-	productoServicio_id INT NOT NULL,
+    productoServicio_id INT NOT NULL,
     cliente_id INT NOT NULL,
-	FOREIGN KEY (productoServicio_id) REFERENCES ProductoServicio(codigo),
-	FOREIGN KEY (cliente_id) REFERENCES Cliente(idCliente)
+    FOREIGN KEY (productoServicio_id) REFERENCES ProductoServicio(codigo),
+    FOREIGN KEY (cliente_id) REFERENCES Cliente(idCliente)
 );
 
 CREATE TABLE Deposito (
@@ -65,8 +65,8 @@ CREATE TABLE Deposito (
     fecha DATE NOT NULL,
     monto DECIMAL(12,2) NOT NULL,
     otrosDetalles VARCHAR(255),
-	cliente_id INT NOT NULL,
-	FOREIGN KEY (cliente_id) REFERENCES Cliente(idCliente)
+    cliente_id INT NOT NULL,
+    FOREIGN KEY (cliente_id) REFERENCES Cliente(idCliente)
 );
 
 CREATE TABLE Debito (
@@ -74,8 +74,8 @@ CREATE TABLE Debito (
     fecha DATE NOT NULL,
     monto DECIMAL(12,2) NOT NULL,
     otrosDetalles VARCHAR(255),
-	cliente_id INT NOT NULL,
-	FOREIGN KEY (cliente_id) REFERENCES Cliente(idCliente)
+    cliente_id INT NOT NULL,
+    FOREIGN KEY (cliente_id) REFERENCES Cliente(idCliente)
 );
 
 CREATE TABLE TipoTransaccion (
@@ -84,28 +84,23 @@ CREATE TABLE TipoTransaccion (
     descripcion VARCHAR(255) NOT NULL
 );
 
-CREATE TABLE Gestion (
-    idGestion INT PRIMARY KEY AUTO_INCREMENT,
-    compra_id INT NOT NULL,
-    deposito_id INT NOT NULL,
-    debito_id INT NOT NULL,
-	FOREIGN KEY (compra_id) REFERENCES Compra(idCompra),
-    FOREIGN KEY (deposito_id) REFERENCES Deposito(idDeposito),
-    FOREIGN KEY (debito_id) REFERENCES Debito(idDebito)
-);
-
 CREATE TABLE Transaccion (
     idTransaccion INT PRIMARY KEY AUTO_INCREMENT,
     fecha DATE NOT NULL,
     otrosDetalles VARCHAR(255),
     tipoTransaccion_id INT NOT NULL,   
-    gestion_id INT NOT NULL,
+    idGestion INT NOT NULL,
     cuenta_id BIGINT NOT NULL,
     FOREIGN KEY (tipoTransaccion_id) REFERENCES TipoTransaccion(idTipoTransaccion),
-	FOREIGN KEY (gestion_id) REFERENCES Gestion(idGestion),
     FOREIGN KEY (cuenta_id) REFERENCES Cuenta(idCuenta)
 );
 
+CREATE TABLE Historial (
+    idHistorial INT AUTO_INCREMENT PRIMARY KEY,
+    fecha DATETIME,
+    descripcion VARCHAR(255),
+    tipo ENUM('INSERT', 'UPDATE', 'DELETE')
+);
 /* ====================================================PROCEDIMIENTOS ALMACENADOS==================================================== */
 /* ================================================================================================================================== */
 /* ======================================================REGISTRAR TIPO CLIENTE====================================================== */
@@ -127,7 +122,7 @@ BEGIN
     INSERT INTO TipoCliente(idTipoCliente, nombre, descripcion)
     VALUES (p_idTipoCliente, p_nombre, p_descripcion);
     
-    SELECT LAST_INSERT_ID() AS idTipoCliente;
+    SELECT 'Tipo de cliente registrado exitosamente.' AS mensaje;
 END //
 
 DELIMITER ;
@@ -182,7 +177,7 @@ BEGIN
     INSERT INTO Cliente(idCliente, nombre, apellidos, telefono, correo, usuario, contraseña, fechaCreacion, tipoCliente_id)
     VALUES (p_idCliente, p_nombre, p_apellidos, p_telefono, p_correo, p_usuario, p_contraseña, NOW(), p_tipoCliente_id);
     
-    SELECT LAST_INSERT_ID() AS idCliente;
+	SELECT 'Cliente registrado exitosamente.' AS mensaje;
 END //
 
 DELIMITER ;
@@ -200,7 +195,7 @@ BEGIN
     INSERT INTO TipoCuenta(codigo, nombre, descripcion)
     VALUES (p_codigo, p_nombre, p_descripcion);
     
-    SELECT LAST_INSERT_ID() AS codigo;
+	SELECT 'Tipo de cuenta registrada exitosamente.' AS mensaje;
 END //
 
 DELIMITER ;
@@ -244,7 +239,7 @@ BEGIN
     INSERT INTO Cuenta(idCuenta, montoApertura, saldoCuenta, descripcion, fechaApertura, otrosDetalles, tipoCuenta_id, cliente_id)
     VALUES (p_idCuenta, p_monto_apertura, p_saldo_cuenta, p_descripcion, p_nuevaFechaApertura, p_otros_detalles, p_tipo_cuenta_id, p_cliente_id);
     
-    SELECT LAST_INSERT_ID() AS idCuenta;
+    SELECT 'Cuenta registrada exitosamente.' AS mensaje;
 END //
 
 DELIMITER ;
@@ -260,7 +255,6 @@ CREATE PROCEDURE crearProductoServicio (
     IN p_descripcion VARCHAR(100)
 )
 BEGIN
-
     -- Validar que el tipo sea 1 o 2
      IF p_tipo <> 1 AND p_tipo <> 2 THEN
 		SIGNAL SQLSTATE '45000'
@@ -277,7 +271,7 @@ BEGIN
     INSERT INTO ProductoServicio(codigo, tipo, costo, descripcion)
     VALUES (p_codigo, p_tipo, p_costo, p_descripcion);
     
-    SELECT LAST_INSERT_ID() AS codigo; -- Devolver el código del producto o servicio insertado
+	SELECT 'Producto/Servicio registrado exitosamente.' AS mensaje;
 END //
 
 DELIMITER ;
@@ -323,7 +317,7 @@ BEGIN
     INSERT INTO Compra(idCompra, fecha, importeCompra, otrosDetalles, productoServicio_id, cliente_id)
     VALUES (p_idCompra, p_nuevaFecha, p_importe_compra, p_otros_detalles, p_producto_servicio_id, p_cliente_id);
     
-    SELECT LAST_INSERT_ID() AS idCompra; -- Devolver el ID de la compra insertada
+	SELECT 'Compra registrada exitosamente.' AS mensaje;
 END //
 
 DELIMITER ;
@@ -359,7 +353,7 @@ BEGIN
     INSERT INTO Deposito(idDeposito, fecha, monto, otrosDetalles, cliente_id)
     VALUES (p_idDeposito, p_nuevaFecha, p_monto, p_otros_detalles, p_cliente_id);
     
-    SELECT LAST_INSERT_ID() AS idDeposito; -- Devolver el ID del depósito insertado
+	SELECT 'Deposito registrado exitosamente.' AS mensaje;
 END //
 
 DELIMITER ;
@@ -395,7 +389,7 @@ BEGIN
     INSERT INTO Debito(idDebito, fecha, monto, otrosDetalles, cliente_id)
     VALUES (p_idDebito, p_nuevaFecha, p_monto, p_otros_detalles, p_cliente_id);
     
-    SELECT LAST_INSERT_ID() AS idDebito; -- Devolver el ID del débito insertado
+	SELECT 'Debito registrado exitosamente.' AS mensaje;
 END //
 
 DELIMITER ;
@@ -414,7 +408,7 @@ BEGIN
     INSERT INTO TipoTransaccion(idTipoTransaccion, nombre, descripcion)
     VALUES (p_idTipoTransaccion, p_nombre, p_descripcion);
     
-    SELECT LAST_INSERT_ID() AS idTransaccion; -- Devolver el código de transacción insertado
+	SELECT 'Tipo de transaccion registrada exitosamente.' AS mensaje;
 END //
 
 DELIMITER ;
@@ -428,7 +422,7 @@ CREATE PROCEDURE asignarTransaccion (
     IN p_fecha VARCHAR(255),
     IN p_otros_detalles VARCHAR(255),
     IN p_tipoTransaccion_id INT,
-    IN p_gestion_id iNT,
+    IN p_idGestion iNT,
     IN p_cuenta_id BIGINT
 )
 BEGIN
@@ -441,11 +435,26 @@ BEGIN
 		SET p_nuevaFecha = STR_TO_DATE(p_fecha, '%d/%m/%Y');
     END IF;
     
-    -- Insertar la transaccion en la tabla
-    INSERT INTO Transaccion(idTransaccion, fecha, otrosDetalles, tipoTransaccion_id, gestion_id, cuenta_id)
-    VALUES (p_idTransaccion, p_nuevaFecha, p_otros_detalles, p_tipoTransaccion_id, p_gestion_id, p_cuenta_id);
+    IF p_tipoTransaccion_id = 1 THEN
+		SELECT * FROM Compra;
+	ELSEIF p_tipoTransaccion_id = 2 THEN
+		SELECT * FROM Deposito;
+    ELSEIF p_tipoTransaccion_id = 3 THEN
+		SELECT * FROM Debito;
+    ELSE
+		SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El tipo de transaccion no existe.';
+    END IF;
     
-    SELECT LAST_INSERT_ID() AS idTransaccion; -- Devolver el ID de la transacción insertada
+	-- UPDATE Cuenta
+    -- SET saldoCuenta = saldoCuenta + p_montoAumento
+    -- WHERE idCuenta = p_idCuenta;
+    
+    -- Insertar la transaccion en la tabla
+    INSERT INTO Transaccion(idTransaccion, fecha, otrosDetalles, tipoTransaccion_id, idGestion, cuenta_id)
+    VALUES (p_idTransaccion, p_nuevaFecha, p_otros_detalles, p_tipoTransaccion_id, p_idGestion, p_cuenta_id);
+    
+	SELECT 'Transaccion registrada exitosamente.' AS mensaje;
 END //
 
 DELIMITER ;
@@ -597,9 +606,272 @@ BEGIN
     DECLARE valido BOOLEAN DEFAULT FALSE;
     
     -- Validar que el texto solo contenga letras y espacios.
-    SET valido = p_letras REGEXP '^[a-zA-Z ]+$';
+    SET valido = p_letras REGEXP '^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ ]+$';
     
     RETURN valido;
 END //
 
+DELIMITER ;
+
+/* =============================================================TRIGGERS============================================================= */
+/* =================================================================================================================================== */
+/* ============================================================TIPOCLIENTE============================================================ */
+DELIMITER //
+CREATE TRIGGER TipoCliente_Audit_Trigger
+AFTER INSERT ON TipoCliente
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla TipoCliente.', 'INSERT');
+END//
+
+CREATE TRIGGER TipoCliente_Update_Trigger
+AFTER UPDATE ON TipoCliente
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla TipoCliente.', 'UPDATE');
+END//
+
+CREATE TRIGGER TipoCliente_Delete_Trigger
+AFTER DELETE ON TipoCliente
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla TipoCliente.', 'DELETE');
+END//
+DELIMITER ;
+/* ==============================================================CLIENTE============================================================== */
+DELIMITER //
+CREATE TRIGGER Cliente_Audit_Trigger
+AFTER INSERT ON Cliente
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla Cliente.', 'INSERT');
+END//
+
+CREATE TRIGGER Cliente_Update_Trigger
+AFTER UPDATE ON Cliente
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla Cliente.', 'UPDATE');
+END//
+
+CREATE TRIGGER Cliente_Delete_Trigger
+AFTER DELETE ON Cliente
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla Cliente.', 'DELETE');
+END//
+DELIMITER ;
+/* ============================================================TIPOCUENTA============================================================ */
+DELIMITER //
+CREATE TRIGGER TipoCuenta_Audit_Trigger
+AFTER INSERT ON TipoCuenta
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla TipoCuenta.', 'INSERT');
+END//
+
+CREATE TRIGGER TipoCuenta_Update_Trigger
+AFTER UPDATE ON TipoCuenta
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla TipoCuenta.', 'UPDATE');
+END//
+
+CREATE TRIGGER TipoCuenta_Delete_Trigger
+AFTER DELETE ON TipoCuenta
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla TipoCuenta.', 'DELETE');
+END//
+DELIMITER ;
+/* ==============================================================CUENTA============================================================== */
+DELIMITER //
+CREATE TRIGGER Cuenta_Audit_Trigger
+AFTER INSERT ON Cuenta
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla Cuenta.', 'INSERT');
+END//
+
+CREATE TRIGGER Cuenta_Update_Trigger
+AFTER UPDATE ON Cuenta
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla Cuenta.', 'UPDATE');
+END//
+
+CREATE TRIGGER Cuenta_Delete_Trigger
+AFTER DELETE ON Cuenta
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla Cuenta.', 'DELETE');
+END//
+DELIMITER ;
+/* =========================================================PRODUCTOSERVICIO========================================================= */
+DELIMITER //
+CREATE TRIGGER ProductoServicio_Audit_Trigger
+AFTER INSERT ON ProductoServicio
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla ProductoServicio.', 'INSERT');
+END//
+
+CREATE TRIGGER ProductoServicio_Update_Trigger
+AFTER UPDATE ON ProductoServicio
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla ProductoServicio.', 'UPDATE');
+END//
+
+CREATE TRIGGER ProductoServicio_Delete_Trigger
+AFTER DELETE ON ProductoServicio
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla ProductoServicio.', 'DELETE');
+END//
+DELIMITER ;
+/* ==============================================================COMPRA============================================================== */
+DELIMITER //
+CREATE TRIGGER Compra_Audit_Trigger
+AFTER INSERT ON Compra
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla Compra.', 'INSERT');
+END//
+
+CREATE TRIGGER Compra_Update_Trigger
+AFTER UPDATE ON Compra
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla Compra.', 'UPDATE');
+END//
+
+CREATE TRIGGER Compra_Delete_Trigger
+AFTER DELETE ON Compra
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla Compra.', 'DELETE');
+END//
+DELIMITER ;
+/* =============================================================DEPOSITO============================================================= */
+DELIMITER //
+CREATE TRIGGER Deposito_Audit_Trigger
+AFTER INSERT ON Deposito
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla Deposito.', 'INSERT');
+END//
+
+CREATE TRIGGER Deposito_Update_Trigger
+AFTER UPDATE ON Deposito
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla Deposito.', 'UPDATE');
+END//
+
+CREATE TRIGGER Deposito_Delete_Trigger
+AFTER DELETE ON Deposito
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla Deposito.', 'DELETE');
+END//
+DELIMITER ;
+/* ==============================================================DEBITO============================================================== */
+DELIMITER //
+CREATE TRIGGER Debito_Audit_Trigger
+AFTER INSERT ON Debito
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla Debito.', 'INSERT');
+END//
+
+CREATE TRIGGER Debito_Update_Trigger
+AFTER UPDATE ON Debito
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla Debito.', 'UPDATE');
+END//
+
+CREATE TRIGGER Debito_Delete_Trigger
+AFTER DELETE ON Debito
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla Debito.', 'DELETE');
+END//
+DELIMITER ;
+/* =========================================================TIPOTRANSACCION========================================================== */
+DELIMITER //
+CREATE TRIGGER TipoTransaccion_Audit_Trigger
+AFTER INSERT ON TipoTransaccion
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla TipoTransaccion.', 'INSERT');
+END//
+
+CREATE TRIGGER TipoTransaccion_Update_Trigger
+AFTER UPDATE ON TipoTransaccion
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla TipoTransaccion.', 'UPDATE');
+END//
+
+CREATE TRIGGER TipoTransaccion_Delete_Trigger
+AFTER DELETE ON TipoTransaccion
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla TipoTransaccion.', 'DELETE');
+END//
+DELIMITER ;
+/* ===========================================================TRANSACCION============================================================ */
+DELIMITER //
+CREATE TRIGGER Transaccion_Audit_Trigger
+AFTER INSERT ON Transaccion
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla Transaccion.', 'INSERT');
+END//
+
+CREATE TRIGGER Transaccion_Update_Trigger
+AFTER UPDATE ON Transaccion
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla Transaccion.', 'UPDATE');
+END//
+
+CREATE TRIGGER Transaccion_Delete_Trigger
+AFTER DELETE ON Transaccion
+FOR EACH ROW
+BEGIN
+    INSERT INTO Historial (fecha, descripcion, tipo)
+    VALUES (NOW(), 'Se ha realizado una acción en la tabla Transaccion.', 'DELETE');
+END//
 DELIMITER ;
