@@ -107,7 +107,7 @@ CREATE TABLE Historial (
 DELIMITER //
 
 CREATE PROCEDURE registrarTipoCliente (
-	IN p_idTipoCliente INT,
+    IN p_idTipoCliente INT,
     IN p_nombre VARCHAR(255),
     IN p_descripcion VARCHAR(255)
 )
@@ -186,7 +186,7 @@ DELIMITER ;
 DELIMITER //
 
 CREATE PROCEDURE registrarTipoCuenta (
-	IN p_codigo INT,
+    IN p_codigo INT,
     IN p_nombre VARCHAR(255),
     IN p_descripcion VARCHAR(255)
 )
@@ -204,14 +204,14 @@ DELIMITER ;
 DELIMITER //
 
 CREATE PROCEDURE registrarCuenta (
-	IN p_idCuenta BIGINT,
+    IN p_idCuenta BIGINT,
     IN p_monto_apertura DECIMAL(12,2),
     IN p_saldo_cuenta DECIMAL(12,2),
     IN p_descripcion VARCHAR(255),
     IN p_fechaApertura VARCHAR(255),
     IN p_otros_detalles VARCHAR(255),
     IN p_tipo_cuenta_id INT,
-	IN p_cliente_id INT
+    IN p_cliente_id INT
 )
 BEGIN
 	DECLARE p_nuevaFechaApertura DATETIME; 
@@ -249,7 +249,7 @@ DELIMITER ;
 DELIMITER //
 
 CREATE PROCEDURE crearProductoServicio (
-	IN p_codigo INT,
+    IN p_codigo INT,
     IN p_tipo INT,
     IN p_costo DECIMAL(12,2),
     IN p_descripcion VARCHAR(100)
@@ -281,7 +281,7 @@ DELIMITER ;
 DELIMITER //
 
 CREATE PROCEDURE realizarCompra (
-	IN p_idCompra INT,
+    IN p_idCompra INT,
     IN p_fecha VARCHAR(255),
     IN p_importe_compra DECIMAL(12,2),
     IN p_otros_detalles VARCHAR(255),
@@ -327,7 +327,7 @@ DELIMITER ;
 DELIMITER //
 
 CREATE PROCEDURE realizarDeposito (
-	IN p_idDeposito INT,
+    IN p_idDeposito INT,
     IN p_fecha VARCHAR(255),
     IN p_monto DECIMAL(12,2),
     IN p_otros_detalles VARCHAR(255),
@@ -363,7 +363,7 @@ DELIMITER ;
 DELIMITER //
 
 CREATE PROCEDURE realizarDebito (
-	IN p_idDebito INT,
+    IN p_idDebito INT,
     IN p_fecha VARCHAR(255),
     IN p_monto DECIMAL(12,2),
     IN p_otros_detalles VARCHAR(255),
@@ -399,7 +399,7 @@ DELIMITER ;
 DELIMITER //
 
 CREATE PROCEDURE registrarTipoTransaccion (
-	IN p_idTipoTransaccion INT,
+    IN p_idTipoTransaccion INT,
     IN p_nombre VARCHAR(255),
     IN p_descripcion VARCHAR(255)
 )
@@ -418,7 +418,7 @@ DELIMITER ;
 DELIMITER //
 
 CREATE PROCEDURE asignarTransaccion (
-	IN p_idTransaccion INT,
+    IN p_idTransaccion INT,
     IN p_fecha VARCHAR(255),
     IN p_otros_detalles VARCHAR(255),
     IN p_tipoTransaccion_id INT,
@@ -437,13 +437,19 @@ BEGIN
     
     IF p_tipoTransaccion_id = 1 THEN
         SELECT 
-            c.importeCompra 
+            *
         FROM 
             Compra
         WHERE 
-            c.idCompra = p_idGestion;
+            idCompra = p_idGestion;
 	ELSEIF p_tipoTransaccion_id = 2 THEN
 		SELECT * FROM Deposito;
+        SELECT 
+            *
+        FROM 
+            Deposito
+        WHERE 
+            idDeposito = p_idGestion;
     ELSEIF p_tipoTransaccion_id = 3 THEN
 		SELECT * FROM Debito;
     ELSE
