@@ -156,7 +156,7 @@ BEGIN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'El nombre solo puede contener letras.';
     END IF;
-    
+        
 	-- Validar que el apellido solo contengan letras
     IF NOT validarLetras(p_apellidos) THEN
         SIGNAL SQLSTATE '45000'
@@ -164,12 +164,14 @@ BEGIN
     END IF;
 
 	-- Validar el formato del telefono
-	IF NOT p_telefono REGEXP '^(502)?[0-9]{8}(-(502)?[0-9]{8})?$' THEN
+	IF NOT validarTelefono(p_telefono) THEN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'El formato del telefono no es valido.';
     END IF;
+    
+    SET p_telefono = obtenerTelefonoSinCodigo(p_telefono);
 
-	IF NOT p_correo REGEXP '^([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})(\\|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})*$' THEN
+	IF NOT validarCorreo(p_correo) THEN
 		SIGNAL SQLSTATE '45000'
 		SET MESSAGE_TEXT = 'El correo electrónico no tiene un formato valido.';
 	END IF;
@@ -892,6 +894,73 @@ END //
 
 DELIMITER ;
 
+/* =========================================================VALIDAR TELEFONO========================================================= */
+DELIMITER //
+
+CREATE FUNCTION validarTelefono (
+	p_telefono VARCHAR(255)
+)
+RETURNS BOOLEAN
+BEGIN
+	DECLARE valido BOOLEAN DEFAULT FALSE;
+    
+    SET valido = p_telefono REGEXP '^([0-9]{3})?[0-9]{8}(-([0-9]{3})?[0-9]{8})?$';
+    
+    RETURN valido;
+END //
+
+DELIMITER ;
+
+/* ====================================================OBTENER TELEFONO SIN CODIGO==================================================== */
+DELIMITER //
+
+CREATE FUNCTION obtenerTelefonoSinCodigo(
+	numero VARCHAR(255)
+)
+RETURNS VARCHAR(255)
+BEGIN
+    DECLARE ultimos_digitos VARCHAR(255);
+    DECLARE pos_guion INT;
+    DECLARE sub_numero VARCHAR(255);
+    DECLARE contador INT DEFAULT 0;
+    DECLARE resultado VARCHAR(255) DEFAULT '';
+
+    SET pos_guion = INSTR(numero, '-');
+    
+    WHILE pos_guion > 0 DO
+        SET sub_numero = SUBSTRING_INDEX(numero, '-', 1);
+        IF LENGTH(sub_numero) >= 8 THEN
+            SET resultado = CONCAT(resultado, RIGHT(sub_numero, 8), '-');
+        END IF;
+        SET numero = SUBSTRING(numero, pos_guion + 1);
+        SET pos_guion = INSTR(numero, '-');
+    END WHILE;
+
+    IF LENGTH(numero) >= 8 THEN
+        SET resultado = CONCAT(resultado, RIGHT(numero, 8));
+    END IF;
+
+    RETURN resultado;
+END//
+
+DELIMITER ;
+
+/* ==========================================================VALIDAR CORREO========================================================== */
+DELIMITER //
+
+CREATE FUNCTION validarCorreo (
+	p_correo VARCHAR(255)
+)
+RETURNS BOOLEAN
+BEGIN
+    DECLARE valido BOOLEAN DEFAULT FALSE;
+    
+    SET valido = p_correo REGEXP '^([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})(\\|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})*$';
+    
+    RETURN valido;
+END //
+
+DELIMITER ;
 /* =============================================================TRIGGERS============================================================= */
 /* =================================================================================================================================== */
 /* ============================================================TIPOCLIENTE============================================================ */
