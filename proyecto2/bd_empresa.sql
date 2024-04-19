@@ -101,6 +101,7 @@ CREATE TABLE Historial (
     descripcion VARCHAR(255),
     tipo ENUM('INSERT', 'UPDATE', 'DELETE')
 );
+
 /* ====================================================PROCEDIMIENTOS ALMACENADOS==================================================== */
 /* ================================================================================================================================== */
 /* ======================================================REGISTRAR TIPO CLIENTE====================================================== */
@@ -245,7 +246,6 @@ END //
 DELIMITER ;
 
 /* ======================================================CREAR PRODUCTO/SERVICIO====================================================== */
-
 DELIMITER //
 
 CREATE PROCEDURE crearProductoServicio (
@@ -277,7 +277,6 @@ END //
 DELIMITER ;
 
 /* ==========================================================REALIZAR COMPRA========================================================== */
-
 DELIMITER //
 
 CREATE PROCEDURE realizarCompra (
@@ -317,13 +316,12 @@ BEGIN
     INSERT INTO Compra(idCompra, fecha, importeCompra, otrosDetalles, productoServicio_id, cliente_id)
     VALUES (p_idCompra, p_nuevaFecha, p_importe_compra, p_otros_detalles, p_producto_servicio_id, p_cliente_id);
     
-	SELECT 'Compra registrada exitosamente.' AS mensaje;
+    SELECT 'Compra registrada exitosamente.' AS mensaje;
 END //
 
 DELIMITER ;
 
 /* =========================================================REALIZAR DEPOSITO========================================================= */
-
 DELIMITER //
 
 CREATE PROCEDURE realizarDeposito (
@@ -359,7 +357,6 @@ END //
 DELIMITER ;
 
 /* ==========================================================REALIZAR DEBITO========================================================== */
-
 DELIMITER //
 
 CREATE PROCEDURE realizarDebito (
@@ -395,7 +392,6 @@ END //
 DELIMITER ;
 
 /* ====================================================REGISTRAR TIPO TRANSACCION==================================================== */
-
 DELIMITER //
 
 CREATE PROCEDURE registrarTipoTransaccion (
@@ -414,7 +410,6 @@ END //
 DELIMITER ;
 
 /* ========================================================ASIGNAR TRANSACCION======================================================== */
-
 DELIMITER //
 
 CREATE PROCEDURE asignarTransaccion (
@@ -426,52 +421,126 @@ CREATE PROCEDURE asignarTransaccion (
     IN p_cuenta_id BIGINT
 )
 BEGIN
-	DECLARE p_nuevaFecha DATE;
+	DECLARE fecha DATE;
+	DECLARE importeCompra DECIMAL(12,2);
+	DECLARE monto DECIMAL(12,2);
+    DECLARE saldoActual DECIMAL(12,2);
+    DECLARE idCliente INT;
 
 	-- Verificar si el campo fecha esta vacio
 	IF p_fecha = '' THEN
-        SET p_nuevaFecha = NOW();
+        SET fecha = NOW();
     ELSE
-		SET p_nuevaFecha = STR_TO_DATE(p_fecha, '%d/%m/%Y');
+		SET fecha = STR_TO_DATE(p_fecha, '%d/%m/%Y');
     END IF;
     
+    -- Verificar el tipo de transaccion
     IF p_tipoTransaccion_id = 1 THEN
         SELECT 
-            *
+			co.importeCompra, co.cliente_id
+		INTO 
+			importeCompra, idCliente
         FROM 
-            Compra
+            Compra co
+		LEFT JOIN 
+			Cuenta cu ON co.cliente_id = cu.cliente_id
         WHERE 
-            idCompra = p_idGestion;
+            co.idCompra = p_idGestion
+            LIMIT 1;      
+        
+        -- Obtener el saldoCuenta de la tabla Cuenta
+		SELECT 
+			saldoCuenta 
+		INTO 
+			saldoActual
+		FROM 
+			Cuenta
+		WHERE 
+			cliente_id = idCliente
+            LIMIT 1;
+
+		-- Verificar si el saldo actual es mayor o igual al importe de la compra
+		IF saldoActual >= importeCompra THEN
+			-- Actualizar el saldo de la cuenta restando el importe de la compra
+			UPDATE Cuenta
+			SET saldoCuenta = saldoCuenta - importeCompra
+			WHERE cliente_id = idCliente
+            LIMIT 1;
+		ELSE
+			SIGNAL SQLSTATE '45000'
+			SET MESSAGE_TEXT = 'El saldo de la cuenta es insuficiente para realizar la compra.';
+		END IF;
+	-- Obtener el monto y el cliente_id del deposito
 	ELSEIF p_tipoTransaccion_id = 2 THEN
-		SELECT * FROM Deposito;
         SELECT 
-            *
+            dep.monto, dep.cliente_id
+		INTO 
+			monto, idCliente
         FROM 
-            Deposito
+            Deposito dep
+		LEFT JOIN 
+			Cuenta cu ON dep.cliente_id = cu.cliente_id
         WHERE 
-            idDeposito = p_idGestion;
+            dep.idDeposito = p_idGestion
+            LIMIT 1;
+		-- Actualizar el saldo de la cuenta correspondiente sumando el monto del deposito
+		UPDATE 
+			Cuenta
+		SET 
+			saldoCuenta = saldoCuenta + monto
+		WHERE 
+			cliente_id = idCliente;
+	-- Obtener el monto y el cliente_id del debito
     ELSEIF p_tipoTransaccion_id = 3 THEN
-		SELECT * FROM Debito;
+        SELECT
+			deb.monto, deb.cliente_id
+		INTO 
+			monto, idCliente
+        FROM 
+            Debito deb
+		LEFT JOIN 
+			Cuenta cu ON deb.cliente_id = cu.cliente_id
+        WHERE 
+            deb.idDebito = p_idGestion
+            LIMIT 1;      
+        
+        -- Obtener el saldoCuenta de la tabla Cuenta
+		SELECT 
+			saldoCuenta 
+		INTO 
+			saldoActual
+		FROM 
+			Cuenta
+		WHERE 
+			cliente_id = idCliente
+            LIMIT 1;
+
+		-- Verificar si el saldo actual es mayor o igual al importe de la compra
+		IF saldoActual >= monto THEN
+			-- Actualizar el saldo de la cuenta restando el importe de la compra
+			UPDATE Cuenta
+			SET saldoCuenta = saldoCuenta - monto
+			WHERE cliente_id = idCliente
+            LIMIT 1;
+		ELSE
+			SIGNAL SQLSTATE '45000'
+			SET MESSAGE_TEXT = 'El saldo de la cuenta es insuficiente para realizar el debito.';
+		END IF;
     ELSE
 		SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'El tipo de transaccion no existe.';
     END IF;
-  
-	-- UPDATE Cuenta
-    -- SET saldoCuenta = saldoCuenta + p_montoAumento
-    -- WHERE idCuenta = p_idCuenta;
     
     -- Insertar la transaccion en la tabla
     INSERT INTO Transaccion(idTransaccion, fecha, otrosDetalles, tipoTransaccion_id, idGestion, cuenta_id)
-    VALUES (p_idTransaccion, p_nuevaFecha, p_otros_detalles, p_tipoTransaccion_id, p_idGestion, p_cuenta_id);
+    VALUES (p_idTransaccion, fecha, p_otros_detalles, p_tipoTransaccion_id, p_idGestion, p_cuenta_id);
     
-	SELECT 'Transaccion registrada exitosamente.' AS mensaje;
+    SELECT 'Transaccion registrada exitosamente.' AS mensaje;
 END //
 
 DELIMITER ;
 
 /* ======================================================CONSULTAR SALDO CLIENTE====================================================== */
-
 DELIMITER //
 
 CREATE PROCEDURE consultarSaldoCliente (
@@ -531,7 +600,6 @@ END //
 DELIMITER ;
 
 /* =========================================================CONSULTAR CLIENTE========================================================= */
-
 DELIMITER //
 
 CREATE PROCEDURE consultarCliente (
@@ -569,8 +637,61 @@ END //
 
 DELIMITER ;
 
-/* =======================================================CONSULTAR TIPO CUENTA======================================================= */
+/* =================================================CONSULTAR MOVIMIENTOS DE CLIENTE================================================= */
+DELIMITER //
 
+CREATE PROCEDURE consultarMovsCliente (
+	IN p_idCliente INT
+)
+BEGIN
+    DECLARE cliente_existe INT;
+
+    -- Verificar si el cliente existe
+    SELECT COUNT(*) INTO cliente_existe FROM Cliente WHERE idCliente = p_idCliente;
+    IF cliente_existe = 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El cliente especificado no existe.';
+    END IF;
+
+    -- Consultar los movimientos del cliente
+    SELECT 
+        t.idTransaccion AS 'Id transacción',
+        tt.nombre AS 'Tipo transacción',
+        CASE 
+            WHEN t.tipoTransaccion_id = 1 THEN c.importeCompra
+            WHEN t.tipoTransaccion_id = 2 THEN d.monto
+            WHEN t.tipoTransaccion_id = 3 THEN deb.monto
+            ELSE NULL
+        END AS 'Monto',
+        CASE
+            WHEN t.tipoTransaccion_id = 1 THEN 'Compra'
+            WHEN t.tipoTransaccion_id = 2 THEN 'Depósito'
+            WHEN t.tipoTransaccion_id = 3 THEN 'Débito'
+            ELSE NULL
+        END AS 'Tipo de servicio',
+        t.cuenta_id AS 'No. cuenta',
+        tc.nombre AS 'Tipo cuenta'
+    FROM 
+        Transaccion t
+    LEFT JOIN 
+        TipoTransaccion tt ON t.tipoTransaccion_id = tt.idTipoTransaccion
+    LEFT JOIN 
+        Compra c ON t.idGestion = c.idCompra AND t.tipoTransaccion_id = 1
+    LEFT JOIN 
+        Deposito d ON t.idGestion = d.idDeposito AND t.tipoTransaccion_id = 2
+    LEFT JOIN 
+        Debito deb ON t.idGestion = deb.idDebito AND t.tipoTransaccion_id = 3
+    LEFT JOIN 
+        Cuenta cu ON t.cuenta_id = cu.idCuenta
+    LEFT JOIN 
+        TipoCuenta tc ON cu.tipoCuenta_id = tc.codigo
+    WHERE 
+        cu.cliente_id = p_idCliente;
+END //
+
+DELIMITER ;
+
+/* =======================================================CONSULTAR TIPO CUENTA======================================================= */
 DELIMITER //
 
 CREATE PROCEDURE consultarTipoCuentas (
@@ -600,6 +721,153 @@ BEGIN
         tipo_cuenta_codigo AS 'Código de tipo de cuenta',
         tipo_cuenta_nombre AS 'Nombre cuenta',
         cantidad_clientes AS 'Cantidad de clientes que poseen ese tipo de cuenta';
+END //
+
+DELIMITER ;
+/* =================================================CONSULTAR MOVIMIENTOS POR FECHA================================================== */
+DELIMITER //
+
+CREATE PROCEDURE consultarMovsGenFech (
+    IN p_fechaInicio VARCHAR(10),
+    IN p_fechaFin VARCHAR(10)
+)
+BEGIN
+    -- Convertir las fechas al formato 'YYYY-MM-DD' para la consulta
+    DECLARE fechaInicio DATE;
+    DECLARE fechaFin DATE;
+    
+    SET fechaInicio = STR_TO_DATE(p_fechaInicio, '%d/%m/%Y');
+    SET fechaFin = STR_TO_DATE(p_fechaFin, '%d/%m/%Y');
+
+    -- Validar si las fechas son válidas
+    IF fechaInicio IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El formato de la fecha de inicio no es válido. Utilice el formato DD/MM/YYYY.';
+    END IF;
+
+    IF fechaFin IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El formato de la fecha de fin no es válido. Utilice el formato DD/MM/YYYY.';
+    END IF;
+
+    -- Consultar los movimientos dentro del rango de fechas especificado
+    SELECT 
+        t.idTransaccion AS 'Id transacción',
+        tt.nombre AS 'Tipo transacción',
+        CASE
+            WHEN t.tipoTransaccion_id = 1 THEN 'Compra'
+            WHEN t.tipoTransaccion_id = 2 THEN 'Depósito'
+            WHEN t.tipoTransaccion_id = 3 THEN 'Débito'
+            ELSE NULL
+        END AS 'Tipo de servicio',
+        CONCAT(c.nombre, ' ', c.apellidos) AS 'Nombre Cliente',
+        t.cuenta_id AS 'No cuenta',
+        tc.nombre AS 'Tipo de cuenta',
+        t.fecha AS 'Fecha',
+        CASE
+            WHEN t.tipoTransaccion_id = 1 THEN co.importeCompra
+            WHEN t.tipoTransaccion_id = 2 THEN d.monto
+            WHEN t.tipoTransaccion_id = 3 THEN deb.monto
+            ELSE NULL
+        END AS 'Monto',
+        t.otrosDetalles AS 'Otros detalles'
+    FROM 
+        Transaccion t
+    LEFT JOIN 
+        TipoTransaccion tt ON t.tipoTransaccion_id = tt.idTipoTransaccion
+    LEFT JOIN 
+        Cuenta cu ON t.cuenta_id = cu.idCuenta
+    LEFT JOIN 
+        Cliente c ON cu.cliente_id = c.idCliente
+    LEFT JOIN 
+        Compra co ON t.idGestion = co.idCompra AND t.tipoTransaccion_id = 1
+    LEFT JOIN 
+        Deposito d ON t.idGestion = d.idDeposito AND t.tipoTransaccion_id = 2
+    LEFT JOIN 
+        Debito deb ON t.idGestion = deb.idDebito AND t.tipoTransaccion_id = 3
+    LEFT JOIN 
+        TipoCuenta tc ON cu.tipoCuenta_id = tc.codigo
+    WHERE 
+        t.fecha BETWEEN fechaInicio AND fechaFin;
+END //
+
+DELIMITER ;
+
+/* ============================================CONSULTAR MOVIMIENTOS POR FECHA DE CLIENTE============================================= */
+DELIMITER //
+
+CREATE PROCEDURE consultarMovsFechClien (
+    IN p_idCliente INT,
+    IN p_fechaInicio VARCHAR(10),
+    IN p_fechaFin VARCHAR(10)
+)
+BEGIN
+    DECLARE cliente_existe INT;
+    DECLARE fechaInicio DATE;
+    DECLARE fechaFin DATE;
+    
+    -- Verificar si el cliente existe
+    SELECT COUNT(*) INTO cliente_existe FROM Cliente WHERE idCliente = p_idCliente;
+    IF cliente_existe = 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El cliente especificado no existe.';
+    END IF;
+
+	-- Convertir las fechas al formato 'YYYY-MM-DD' para la consulta
+    SET fechaInicio = STR_TO_DATE(p_fechaInicio, '%d/%m/%Y');
+    SET fechaFin = STR_TO_DATE(p_fechaFin, '%d/%m/%Y');
+
+    -- Validar si las fechas son válidas
+    IF fechaInicio IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El formato de la fecha de inicio no es válido. Utilice el formato DD/MM/YYYY.';
+    END IF;
+
+    IF fechaFin IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El formato de la fecha de fin no es válido. Utilice el formato DD/MM/YYYY.';
+    END IF;
+
+    -- Consultar los movimientos dentro del rango de fechas especificado para el cliente dado
+    SELECT 
+        t.idTransaccion AS 'Id transacción',
+        tt.nombre AS 'Tipo transacción',
+        CASE
+            WHEN t.tipoTransaccion_id = 1 THEN 'Compra'
+            WHEN t.tipoTransaccion_id = 2 THEN 'Depósito'
+            WHEN t.tipoTransaccion_id = 3 THEN 'Débito'
+            ELSE NULL
+        END AS 'Tipo de servicio',
+        CONCAT(c.nombre, ' ', c.apellidos) AS 'Nombre Cliente',
+        t.cuenta_id AS 'No cuenta',
+        tc.nombre AS 'Tipo de cuenta',
+        t.fecha AS 'Fecha',
+        CASE
+            WHEN t.tipoTransaccion_id = 1 THEN co.importeCompra
+            WHEN t.tipoTransaccion_id = 2 THEN d.monto
+            WHEN t.tipoTransaccion_id = 3 THEN deb.monto
+            ELSE NULL
+        END AS 'Monto',
+        t.otrosDetalles AS 'Otros detalles'
+    FROM 
+        Transaccion t
+    LEFT JOIN 
+        TipoTransaccion tt ON t.tipoTransaccion_id = tt.idTipoTransaccion
+    LEFT JOIN 
+        Cuenta cu ON t.cuenta_id = cu.idCuenta
+    LEFT JOIN 
+        Cliente c ON cu.cliente_id = c.idCliente
+    LEFT JOIN 
+        Compra co ON t.idGestion = co.idCompra AND t.tipoTransaccion_id = 1
+    LEFT JOIN 
+        Deposito d ON t.idGestion = d.idDeposito AND t.tipoTransaccion_id = 2
+    LEFT JOIN 
+        Debito deb ON t.idGestion = deb.idDebito AND t.tipoTransaccion_id = 3
+    LEFT JOIN 
+        TipoCuenta tc ON cu.tipoCuenta_id = tc.codigo
+    WHERE 
+        c.idCliente = p_idCliente
+        AND t.fecha BETWEEN fechaInicio AND fechaFin;
 END //
 
 DELIMITER ;
