@@ -14,13 +14,19 @@ CREATE TABLE Cliente (
     idCliente INT PRIMARY KEY AUTO_INCREMENT,
     nombre VARCHAR(255) NOT NULL,
     apellidos VARCHAR(255) NOT NULL,
-    telefono VARCHAR(255),
     correo VARCHAR(255) NOT NULL,
     usuario VARCHAR(255) UNIQUE NOT NULL,
     contraseña VARCHAR(255) NOT NULL,
     fechaCreacion DATE,
     tipoCliente_id INT NOT NULL,
     FOREIGN KEY (tipoCliente_id) REFERENCES TipoCliente(idTipoCliente)
+);
+
+CREATE TABLE Telefono (
+    idTelefono INT PRIMARY KEY AUTO_INCREMENT,
+    telefono VARCHAR(255) NOT NULL,
+    cliente_id INT NOT NULL,
+    FOREIGN KEY (cliente_id) REFERENCES Cliente(idCliente)
 );
 
 CREATE TABLE TipoCuenta (
@@ -112,7 +118,13 @@ CREATE PROCEDURE registrarTipoCliente (
     IN p_nombre VARCHAR(255),
     IN p_descripcion VARCHAR(255)
 )
-BEGIN   
+BEGIN
+    -- Verificar si el tipod de cliente ya existe
+    IF EXISTS (SELECT 1 FROM TipoCliente WHERE idTipoCliente = p_idTipoCliente) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El tipo de cliente ya existe.';
+    END IF;
+    
 	-- Validar la descripcion usando la funcion
     IF NOT validarLetras(p_descripcion) THEN
         SIGNAL SQLSTATE '45000'
@@ -143,7 +155,14 @@ CREATE PROCEDURE registrarCliente (
 )
 BEGIN
     DECLARE existe_usuario INT;
+	DECLARE st INT;
 
+    -- Verificar si el cliente ya existe
+    IF EXISTS (SELECT 1 FROM Cliente WHERE idCliente = p_idCliente) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El cliente ya existe.';
+    END IF;
+    
     -- Validar que el usuario no exista
     SELECT COUNT(*) INTO existe_usuario FROM Cliente WHERE usuario = p_usuario;
     IF existe_usuario > 0 THEN
@@ -177,8 +196,11 @@ BEGIN
 	END IF;
 
     -- Insertar el cliente en la tabla
-    INSERT INTO Cliente(idCliente, nombre, apellidos, telefono, correo, usuario, contraseña, fechaCreacion, tipoCliente_id)
-    VALUES (p_idCliente, p_nombre, p_apellidos, p_telefono, p_correo, p_usuario, p_contraseña, NOW(), p_tipoCliente_id);
+    INSERT INTO Cliente(idCliente, nombre, apellidos, correo, usuario, contraseña, fechaCreacion, tipoCliente_id)
+    VALUES (p_idCliente, p_nombre, p_apellidos, p_correo, p_usuario, p_contraseña, NOW(), p_tipoCliente_id);
+    
+    -- Insertar el telefono en la tabla Telefono
+    SET st = insertarTelefono(p_telefono, p_idCliente);
     
 	SELECT 'Cliente registrado exitosamente.' AS mensaje;
 END //
@@ -194,6 +216,23 @@ CREATE PROCEDURE registrarTipoCuenta (
     IN p_descripcion VARCHAR(255)
 )
 BEGIN
+    -- Verificar si el tipo de cuenta ya existe
+    IF EXISTS (SELECT 1 FROM TipoCuenta WHERE codigo = p_codigo) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El tipo de cuenta ya existe.';
+    END IF;
+    
+	-- Verificar si el nombre o la descripcion son cadenas vacias
+    IF p_nombre = '' THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El nombre no puede estar vacío.';
+    END IF;
+
+    IF p_descripcion = '' THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'La descripcion no puede estar vacia.';
+    END IF;
+    
     -- Insertar el tipo de cuenta en la tabla
     INSERT INTO TipoCuenta(codigo, nombre, descripcion)
     VALUES (p_codigo, p_nombre, p_descripcion);
@@ -218,6 +257,14 @@ CREATE PROCEDURE registrarCuenta (
 )
 BEGIN
 	DECLARE p_nuevaFechaApertura DATETIME; 
+	DECLARE cliente_existe INT;
+    DECLARE tipo_cuenta_existe INT;
+    
+	-- Verificar si la cuenta ya existe
+    IF EXISTS (SELECT 1 FROM Cuenta WHERE idCuenta = p_idCuenta) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'La cuenta ya existe.';
+    END IF;
     
     -- Validar que el monto de apertura sea positivo
     IF p_monto_apertura <= 0 THEN
@@ -229,6 +276,26 @@ BEGIN
     IF p_saldo_cuenta < 0 THEN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'El saldo de cuenta debe ser mayor o igual a 0.';
+    END IF;
+    
+	-- Validar que el monto_apertura y saldo_cuenta sean iguales
+    IF p_monto_apertura != p_saldo_cuenta THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El monto de apertura y el saldo de cuenta deben ser iguales.';
+    END IF;
+
+    -- Verificar si el cliente existe
+    SELECT COUNT(*) INTO cliente_existe FROM Cliente WHERE idCliente = p_cliente_id;
+    IF cliente_existe = 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El cliente no existe.';
+    END IF;
+    
+	-- Verificar si el tipo de cuenta existe
+    SELECT COUNT(*) INTO tipo_cuenta_existe FROM TipoCuenta WHERE codigo = p_tipo_cuenta_id;
+    IF tipo_cuenta_existe = 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El tipo de cuenta no existe.';
     END IF;
 	
 	-- Verificar si el campo fecha esta vacio
@@ -257,16 +324,34 @@ CREATE PROCEDURE crearProductoServicio (
     IN p_descripcion VARCHAR(100)
 )
 BEGIN
+	-- Verificar si el producto/servicio ya existe
+    IF EXISTS (SELECT 1 FROM ProductoServicio WHERE codigo = p_codigo) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El producto/servicio ya existe.';
+    END IF;
+    
     -- Validar que el tipo sea 1 o 2
      IF p_tipo <> 1 AND p_tipo <> 2 THEN
 		SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'El valor de tipo no es valido. Debe ser 1 para servicio o 2 para producto.';
     END IF;
     
+	-- Validar que el costo sea >= 0
+    IF p_costo < 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El costo debe ser mayor o igual a 0.';
+    END IF;
+    
     -- Validar que el costo sea obligatorio para los servicios (tipo = 1)
     IF p_tipo = 1 AND p_costo IS NULL THEN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'El costo es obligatorio para los servicios.';
+    END IF;
+    
+	-- Validar que el costo sea 0 para los productos (tipo = 2)
+    IF p_tipo = 2 AND p_costo != 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El costo debe ser 0 para los productos.';
     END IF;
 
     -- Insertar el producto o servicio en la tabla
@@ -292,8 +377,29 @@ CREATE PROCEDURE realizarCompra (
 BEGIN
 	DECLARE p_nuevaFecha DATE;
     DECLARE tipoProductoServicio INT;
+	DECLARE cliente_existe INT;
+    
+	-- Verificar si la compra ya existe
+    IF EXISTS (SELECT 1 FROM Compra WHERE idCompra = p_idCompra) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'La compra ya existe.';
+    END IF;
+    
+	-- Verificar si el cliente existe
+    SELECT COUNT(*) INTO cliente_existe FROM Cliente WHERE idCliente = p_cliente_id;
+    IF cliente_existe = 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El cliente no existe.';
+    END IF;
 
-	SELECT tipo INTO tipoProductoServicio FROM ProductoServicio WHERE codigo = p_producto_servicio_id;
+	SELECT 
+		tipo 
+	INTO 
+		tipoProductoServicio 
+	FROM 
+		ProductoServicio 
+	WHERE 
+		codigo = p_producto_servicio_id;
 
     -- Validar que el importe de compra sea 0 si se trata de un servicio
     IF tipoProductoServicio = 1 AND p_importe_compra <> 0 THEN
@@ -301,7 +407,7 @@ BEGIN
         SET MESSAGE_TEXT = 'El monto debe ser igual a 0 ya que es un servicio.';
     END IF;
     
-        -- Validar que el importe de compra sea obligatorio si se trata de un producto
+	-- Validar que el importe de compra sea obligatorio si se trata de un producto
     IF tipoProductoServicio = 2 AND p_importe_compra <= 0 THEN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'El monto debe ser mayor a 0 ya que es un producto.';
@@ -335,6 +441,20 @@ CREATE PROCEDURE realizarDeposito (
 )
 BEGIN
 	DECLARE p_nuevaFecha DATE;
+	DECLARE cliente_existe INT;
+    
+	-- Verificar si el deposito ya existe
+    IF EXISTS (SELECT 1 FROM Deposito WHERE idDeposito = p_idDeposito) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El deposito ya existe.';
+    END IF;
+    
+	-- Verificar si el cliente existe
+    SELECT COUNT(*) INTO cliente_existe FROM Cliente WHERE idCliente = p_cliente_id;
+    IF cliente_existe = 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El cliente no existe.';
+    END IF;
 
 	-- Verificar si el campo fecha esta vacio
 	IF p_fecha = '' THEN
@@ -370,6 +490,20 @@ CREATE PROCEDURE realizarDebito (
 )
 BEGIN
 	DECLARE p_nuevaFecha DATE;
+	DECLARE cliente_existe INT;
+    
+	-- Verificar si el debito ya existe
+    IF EXISTS (SELECT 1 FROM Debito WHERE idDebito = p_idDebito) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El debito ya existe.';
+    END IF;
+    
+	-- Verificar si el cliente existe
+    SELECT COUNT(*) INTO cliente_existe FROM Cliente WHERE idCliente = p_cliente_id;
+    IF cliente_existe = 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El cliente no existe.';
+    END IF;
 
 	-- Verificar si el campo fecha esta vacio
 	IF p_fecha = '' THEN
@@ -402,6 +536,23 @@ CREATE PROCEDURE registrarTipoTransaccion (
     IN p_descripcion VARCHAR(255)
 )
 BEGIN
+	-- Verificar si el tipo de transaccion ya existe
+    IF EXISTS (SELECT 1 FROM TipoTransaccion WHERE idTipoTransaccion = p_idTipoTransaccion) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El tipo de transaccion ya existe.';
+    END IF;
+    
+	-- Verificar si el nombre o la descripcion son cadenas vacias
+    IF p_nombre = '' THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'El nombre no puede estar vacío.';
+    END IF;
+
+    IF p_descripcion = '' THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'La descripcion no puede estar vacía.';
+    END IF;
+    
     -- Insertar el tipo de transacción en la tabla
     INSERT INTO TipoTransaccion(idTipoTransaccion, nombre, descripcion)
     VALUES (p_idTipoTransaccion, p_nombre, p_descripcion);
@@ -428,6 +579,12 @@ BEGIN
 	DECLARE monto DECIMAL(12,2);
     DECLARE saldoActual DECIMAL(12,2);
     DECLARE idCliente INT;
+    
+	-- Verificar si la transaccion ya existe
+    IF EXISTS (SELECT 1 FROM Transaccion WHERE idTransaccion = p_idTransaccion) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'La transaccion ya existe.';
+    END IF;
 
 	-- Verificar si el campo fecha esta vacio
 	IF p_fecha = '' THEN
@@ -458,16 +615,14 @@ BEGIN
 		FROM 
 			Cuenta
 		WHERE 
-			cliente_id = idCliente
-            LIMIT 1;
+			idCuenta = p_cuenta_id;
 
 		-- Verificar si el saldo actual es mayor o igual al importe de la compra
 		IF saldoActual >= importeCompra THEN
 			-- Actualizar el saldo de la cuenta restando el importe de la compra
 			UPDATE Cuenta
 			SET saldoCuenta = saldoCuenta - importeCompra
-			WHERE cliente_id = idCliente
-            LIMIT 1;
+			WHERE idCuenta = p_cuenta_id;
 		ELSE
 			SIGNAL SQLSTATE '45000'
 			SET MESSAGE_TEXT = 'El saldo de la cuenta es insuficiente para realizar la compra.';
@@ -491,7 +646,7 @@ BEGIN
 		SET 
 			saldoCuenta = saldoCuenta + monto
 		WHERE 
-			cliente_id = idCliente;
+			idCuenta = p_cuenta_id;
 	-- Obtener el monto y el cliente_id del debito
     ELSEIF p_tipoTransaccion_id = 3 THEN
         SELECT
@@ -514,7 +669,7 @@ BEGIN
 		FROM 
 			Cuenta
 		WHERE 
-			cliente_id = idCliente
+			idCuenta = p_cuenta_id
             LIMIT 1;
 
 		-- Verificar si el saldo actual es mayor o igual al importe de la compra
@@ -522,7 +677,7 @@ BEGIN
 			-- Actualizar el saldo de la cuenta restando el importe de la compra
 			UPDATE Cuenta
 			SET saldoCuenta = saldoCuenta - monto
-			WHERE cliente_id = idCliente
+			WHERE idCuenta = p_cuenta_id
             LIMIT 1;
 		ELSE
 			SIGNAL SQLSTATE '45000'
@@ -623,7 +778,6 @@ BEGIN
         CONCAT(c.nombre, ' ', c.apellidos) AS nombre_completo,
         c.fechaCreacion,
         c.usuario,
-        c.telefono,
         c.correo,
         COUNT(cu.idCuenta) AS cantidad_cuentas,
         GROUP_CONCAT(tc.nombre SEPARATOR ', ') AS tipos_cuenta
@@ -924,7 +1078,7 @@ RETURNS BOOLEAN
 BEGIN
 	DECLARE valido BOOLEAN DEFAULT FALSE;
     
-    SET valido = p_telefono REGEXP '^([0-9]{3})?[0-9]{8}(-([0-9]{3})?[0-9]{8})?$';
+    SET valido = p_telefono REGEXP '^([0-9]{3})?[0-9]{8}(-([0-9]{3})?[0-9]{8})*$';
     
     RETURN valido;
 END //
@@ -981,6 +1135,46 @@ BEGIN
 END //
 
 DELIMITER ;
+
+/* ========================================================INSERTAR TELEFONOS======================================================== */
+DELIMITER //
+
+CREATE FUNCTION insertarTelefono (
+    cadena_telefonos VARCHAR(255), 
+    p_idCliente INT
+)
+RETURNS INT
+BEGIN
+    DECLARE i INT DEFAULT 1;
+    DECLARE token VARCHAR(20);
+    DECLARE nextDash INT;
+
+    -- Encuentra la primera posición del guion
+    SET nextDash = LOCATE('-', cadena_telefonos);
+
+    WHILE nextDash > 0 DO
+        -- Extrae el token antes del guion
+        SET token = SUBSTRING(cadena_telefonos, 1, nextDash - 1);
+
+        -- Inserta el teléfono en la tabla Telefono
+        INSERT INTO Telefono(telefono, cliente_id) VALUES (token, p_idCliente);
+
+        -- Actualiza la cadena para omitir el token que ya hemos procesado
+        SET cadena_telefonos = SUBSTRING(cadena_telefonos, nextDash + 1);
+
+        -- Encuentra la próxima posición del guion
+        SET nextDash = LOCATE('-', cadena_telefonos);
+    END WHILE;
+
+    -- Procesa el último número de teléfono después del último guion
+    SET token = cadena_telefonos;
+    INSERT INTO Telefono(telefono, cliente_id) VALUES (token, p_idCliente);
+
+    RETURN 1;
+END //
+
+DELIMITER ;
+
 /* =============================================================TRIGGERS============================================================= */
 /* =================================================================================================================================== */
 /* ============================================================TIPOCLIENTE============================================================ */
@@ -1282,3 +1476,9 @@ CALL crearProductoServicio(14, 2, 0, 'Pago de curso vacaciones USAC');
 CALL crearProductoServicio(15, 2, 0, 'Pago de servicio de internet');
 CALL crearProductoServicio(16, 2, 0, 'Servicio de suscripción plataformas streaming');
 CALL crearProductoServicio(17, 2, 0, 'Servicios Cloud');
+
+-- registrar tipo de transaccion
+-- id, nombre, descripcion
+CALL registrarTipoTransaccion(1, 'Compra', 'Transacción de compra');
+CALL registrarTipoTransaccion(2, 'Deposito', 'Transacción de deposito');
+CALL registrarTipoTransaccion(3, 'Debito', 'Transacción de debito');
